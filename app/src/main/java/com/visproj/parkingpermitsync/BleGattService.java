@@ -266,13 +266,20 @@ public class BleGattService extends Service {
                     boolean isNewPermit = lastSyncedPermit != null &&
                         !lastSyncedPermit.equals(permit.permitNumber);
 
+                    byte syncType = pendingSyncType;
+                    boolean isManualSync = syncType == SYNC_TYPE_MANUAL || syncType == SYNC_TYPE_FORCE;
+
+                    Log.d(TAG, "Sync decision: lastSynced=" + lastSyncedPermit +
+                        ", current=" + permit.permitNumber +
+                        ", isNewPermit=" + isNewPermit +
+                        ", syncType=" + syncType +
+                        ", isManualSync=" + isManualSync);
+
                     repository.setDisplayPermit(permit);
 
                     // Show notification if:
                     // - New permit (permit number actually changed)
                     // - Manual sync (button press) or force sync (long press) - always notify
-                    byte syncType = pendingSyncType;
-                    boolean isManualSync = syncType == SYNC_TYPE_MANUAL || syncType == SYNC_TYPE_FORCE;
                     if (isNewPermit || isManualSync) {
                         showSyncNotification(permit, isNewPermit, syncType);
                     }
