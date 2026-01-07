@@ -233,7 +233,7 @@ public class BleGattService extends Service {
             }
 
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                Log.d(TAG, "Device connected: " + deviceName);
+                Log.d(TAG, "Device connected: " + deviceName + ", resetting pendingSyncType to AUTO (1)");
                 pendingSyncType = SYNC_TYPE_AUTO; // Reset to auto on new connection
                 sendBroadcast(ACTION_DEVICE_CONNECTED);
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
@@ -278,9 +278,11 @@ public class BleGattService extends Service {
                     repository.setDisplayPermit(permit);
 
                     // Show notification if:
-                    // - New permit (permit number actually changed)
-                    // - Manual sync (button press) or force sync (long press) - always notify
-                    if (isNewPermit || isManualSync) {
+                    // - Manual sync (button press) - always notify
+                    // - Force sync (long press) - always notify
+                    // - New permit (permit number actually changed) - notify
+                    // AUTO sync with same/unknown permit should be silent
+                    if (isManualSync || isNewPermit) {
                         showSyncNotification(permit, isNewPermit, syncType);
                     }
 
