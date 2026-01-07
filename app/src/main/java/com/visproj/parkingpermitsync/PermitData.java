@@ -9,6 +9,9 @@ public class PermitData {
     @SerializedName("plateNumber")
     public String plateNumber = "";
 
+    @SerializedName("vehicleName")
+    public String vehicleName = "";
+
     @SerializedName("validFrom")
     public String validFrom = "";
 
@@ -20,6 +23,9 @@ public class PermitData {
 
     @SerializedName("barcodeLabel")
     public String barcodeLabel = "";
+
+    @SerializedName("amountPaid")
+    public String price = "";
 
     public PermitData() {}
 

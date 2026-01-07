@@ -1,51 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:background="#1a1f2e">
 
-    <TextView
-        android:id="@+id/tvStatus"
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="#2a3142"
+        app:title="Parking Permit Sync"
+        app:titleTextColor="#e2e8f0"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Dark" />
+
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Initializing..."
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="24dp" />
+        android:background="#2a3142"
+        app:tabTextColor="#8892a6"
+        app:tabSelectedTextColor="#e2e8f0"
+        app:tabIndicatorColor="#2196f3"
+        app:tabIndicatorFullWidth="true"
+        app:tabMode="fixed"
+        app:tabGravity="fill" />
 
-    <TextView
-        android:id="@+id/tvPermit"
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/viewPager"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="No permit data"
-        android:textSize="16sp"
-        android:fontFamily="monospace"
-        android:background="#f5f5f5"
-        android:padding="16dp"
-        android:layout_marginBottom="16dp" />
-
-    <TextView
-        android:id="@+id/tvLastSync"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Never synced"
-        android:textSize="14sp"
-        android:textColor="#666666"
-        android:layout_marginBottom="24dp" />
-
-    <Button
-        android:id="@+id/btnSync"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Sync Now"
-        android:layout_marginBottom="12dp" />
-
-    <Button
-        android:id="@+id/btnBattery"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Battery Settings"
-        android:visibility="gone" />
+        android:layout_height="0dp"
+        android:layout_weight="1" />
 
 </LinearLayout>

@@ -9,6 +9,9 @@ public class PermitRepository {
     private static final String PREFS_NAME = "permit_data";
     private static final String KEY_PERMIT = "cached_permit";
     private static final String KEY_LAST_SYNC = "last_sync_time";
+    private static final String KEY_LAST_DISPLAY_SYNC = "last_display_sync_time";
+    private static final String KEY_DISPLAY_PERMIT_NUMBER = "display_permit_number";
+    private static final String KEY_DISPLAY_PERMIT = "display_permit";
     private static final String KEY_GITHUB_URL = "github_url";
 
     private static final String DEFAULT_GITHUB_URL =
@@ -42,6 +45,50 @@ public class PermitRepository {
 
     public long getLastSyncTime() {
         return prefs.getLong(KEY_LAST_SYNC, 0);
+    }
+
+    public long getLastDisplaySyncTime() {
+        return prefs.getLong(KEY_LAST_DISPLAY_SYNC, 0);
+    }
+
+    public void setLastDisplaySyncTime(long time) {
+        prefs.edit().putLong(KEY_LAST_DISPLAY_SYNC, time).apply();
+    }
+
+    public String getDisplayPermitNumber() {
+        return prefs.getString(KEY_DISPLAY_PERMIT_NUMBER, null);
+    }
+
+    public void setDisplayPermitNumber(String permitNumber) {
+        prefs.edit()
+            .putString(KEY_DISPLAY_PERMIT_NUMBER, permitNumber)
+            .putLong(KEY_LAST_DISPLAY_SYNC, System.currentTimeMillis())
+            .apply();
+    }
+
+    public PermitData getDisplayPermit() {
+        String json = prefs.getString(KEY_DISPLAY_PERMIT, null);
+        if (json == null) return null;
+        try {
+            return gson.fromJson(json, PermitData.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public void setDisplayPermit(PermitData permit) {
+        prefs.edit()
+            .putString(KEY_DISPLAY_PERMIT, gson.toJson(permit))
+            .putString(KEY_DISPLAY_PERMIT_NUMBER, permit.permitNumber)
+            .putLong(KEY_LAST_DISPLAY_SYNC, System.currentTimeMillis())
+            .apply();
+    }
+
+    public boolean isDisplayOutOfSync() {
+        PermitData permit = getPermit();
+        String displayPermit = getDisplayPermitNumber();
+        if (permit == null || permit.permitNumber == null) return false;
+        return displayPermit == null || !permit.permitNumber.equals(displayPermit);
     }
 
     public String getGitHubUrl() {

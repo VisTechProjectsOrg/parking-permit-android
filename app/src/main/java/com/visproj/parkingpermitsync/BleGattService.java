@@ -29,6 +29,7 @@ import android.util.Log;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -36,12 +37,28 @@ import java.util.UUID;
 public class BleGattService extends Service {
     private static final String TAG = "BleGattService";
 
+    // Broadcast actions for UI updates
+    public static final String ACTION_SERVICE_RUNNING = "com.visproj.parkingpermitsync.SERVICE_RUNNING";
+    public static final String ACTION_DEVICE_CONNECTED = "com.visproj.parkingpermitsync.DEVICE_CONNECTED";
+    public static final String ACTION_DEVICE_DISCONNECTED = "com.visproj.parkingpermitsync.DEVICE_DISCONNECTED";
+    public static final String ACTION_PERMIT_READ = "com.visproj.parkingpermitsync.PERMIT_READ";
+
     // BLE UUIDs - ESP32 will use these to find and read permit data
-    public static final UUID SERVICE_UUID = UUID.fromString("12345678-1234-5678-1234-56789abcdef0");
-    public static final UUID PERMIT_CHAR_UUID = UUID.fromString("12345678-1234-5678-1234-56789abcdef1");
+    // Using standard Bluetooth Base UUID format for better compatibility
+    public static final UUID SERVICE_UUID = UUID.fromString("0000ff00-0000-1000-8000-00805f9b34fb");
+    public static final UUID PERMIT_CHAR_UUID = UUID.fromString("0000ff01-0000-1000-8000-00805f9b34fb");
+    public static final UUID SYNC_TYPE_CHAR_UUID = UUID.fromString("0000ff02-0000-1000-8000-00805f9b34fb");
+
+    // Sync types - ESP32 writes this before reading permit
+    private static final byte SYNC_TYPE_AUTO = 1;    // Reboot/auto sync - no notification if same permit
+    private static final byte SYNC_TYPE_MANUAL = 2;  // Button press - always show notification
+    private static final byte SYNC_TYPE_FORCE = 3;   // Long press - always show notification
+
+    private byte pendingSyncType = SYNC_TYPE_AUTO;
 
     private static final String CHANNEL_ID = "ble_service_channel";
     private static final int NOTIFICATION_ID = 1;
+    private static final int SYNC_NOTIFICATION_ID = 2;
 
     private BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
@@ -50,6 +67,11 @@ public class BleGattService extends Service {
     private PermitRepository repository;
 
     private boolean isAdvertising = false;
+    private static boolean isRunning = false;
+
+    public static boolean isServiceRunning() {
+        return isRunning;
+    }
 
     @Override
     public void onCreate() {
@@ -66,6 +88,8 @@ public class BleGattService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "Service started");
+        isRunning = true;
+        sendBroadcast(ACTION_SERVICE_RUNNING);
 
         startForeground();
         startBleServer();
@@ -122,7 +146,14 @@ public class BleGattService extends Service {
                 BluetoothGattCharacteristic.PROPERTY_READ,
                 BluetoothGattCharacteristic.PERMISSION_READ);
 
+            // Sync type characteristic - ESP32 writes 1=auto, 2=manual, 3=force before reading permit
+            BluetoothGattCharacteristic syncTypeChar = new BluetoothGattCharacteristic(
+                SYNC_TYPE_CHAR_UUID,
+                BluetoothGattCharacteristic.PROPERTY_WRITE | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
+                BluetoothGattCharacteristic.PERMISSION_WRITE);
+
             service.addCharacteristic(permitChar);
+            service.addCharacteristic(syncTypeChar);
             gattServer.addService(service);
 
             Log.d(TAG, "GATT server started");
@@ -136,6 +167,11 @@ public class BleGattService extends Service {
     }
 
     private void startAdvertising() {
+        if (isAdvertising) {
+            Log.d(TAG, "Already advertising");
+            return;
+        }
+
         advertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
         if (advertiser == null) {
             Log.e(TAG, "BLE advertising not supported");
@@ -143,18 +179,27 @@ public class BleGattService extends Service {
         }
 
         AdvertiseSettings settings = new AdvertiseSettings.Builder()
-            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
+            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
             .setConnectable(true)
             .setTimeout(0)  // Advertise indefinitely
             .build();
 
-        AdvertiseData data = new AdvertiseData.Builder()
+        AdvertiseData advertiseData = new AdvertiseData.Builder()
             .setIncludeDeviceName(true)
+            .setIncludeTxPowerLevel(false)
             .addServiceUuid(new ParcelUuid(SERVICE_UUID))
             .build();
 
+        AdvertiseData scanResponse = new AdvertiseData.Builder()
+            .setIncludeDeviceName(false)
+            .addServiceUuid(new ParcelUuid(SERVICE_UUID))
+            .build();
+
+        Log.d(TAG, "Starting BLE advertising with UUID: " + SERVICE_UUID.toString());
+
         try {
-            advertiser.startAdvertising(settings, data, advertiseCallback);
+            advertiser.startAdvertising(settings, advertiseData, scanResponse, advertiseCallback);
         } catch (SecurityException e) {
             Log.e(TAG, "Security exception starting advertising", e);
         }
@@ -164,7 +209,9 @@ public class BleGattService extends Service {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
             isAdvertising = true;
+            isRunning = true;
             Log.d(TAG, "BLE advertising started");
+            sendBroadcast(ACTION_SERVICE_RUNNING);
         }
 
         @Override
@@ -187,8 +234,11 @@ public class BleGattService extends Service {
 
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 Log.d(TAG, "Device connected: " + deviceName);
+                pendingSyncType = SYNC_TYPE_AUTO; // Reset to auto on new connection
+                sendBroadcast(ACTION_DEVICE_CONNECTED);
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 Log.d(TAG, "Device disconnected: " + deviceName);
+                sendBroadcast(ACTION_DEVICE_DISCONNECTED);
             }
         }
 
@@ -202,6 +252,29 @@ public class BleGattService extends Service {
                 byte[] data = json.getBytes(StandardCharsets.UTF_8);
 
                 Log.d(TAG, "Permit read request, sending " + data.length + " bytes");
+
+                // Show notification and record sync time on first chunk (offset 0)
+                if (offset == 0 && permit != null) {
+                    // Check if permit is different from last synced
+                    String lastSyncedPermit = repository.getDisplayPermitNumber();
+                    boolean isNewPermit = lastSyncedPermit == null ||
+                        !lastSyncedPermit.equals(permit.permitNumber);
+
+                    repository.setDisplayPermit(permit);
+
+                    // Show notification if:
+                    // - New permit (always notify)
+                    // - Manual sync (button press) or force sync (long press) - always notify
+                    byte syncType = pendingSyncType;
+                    boolean isManualSync = syncType == SYNC_TYPE_MANUAL || syncType == SYNC_TYPE_FORCE;
+                    if (isNewPermit || isManualSync) {
+                        showSyncNotification(permit, isNewPermit, syncType);
+                    }
+
+                    // Reset sync type after handling
+                    pendingSyncType = SYNC_TYPE_AUTO;
+                    sendBroadcast(ACTION_PERMIT_READ);
+                }
 
                 try {
                     if (offset >= data.length) {
@@ -222,6 +295,35 @@ public class BleGattService extends Service {
                 }
             }
         }
+
+        @Override
+        public void onCharacteristicWriteRequest(BluetoothDevice device, int requestId,
+                BluetoothGattCharacteristic characteristic, boolean preparedWrite,
+                boolean responseNeeded, int offset, byte[] value) {
+
+            if (SYNC_TYPE_CHAR_UUID.equals(characteristic.getUuid())) {
+                if (value != null && value.length > 0) {
+                    pendingSyncType = value[0];
+                    Log.d(TAG, "Sync type set to: " + pendingSyncType);
+                }
+
+                if (responseNeeded) {
+                    try {
+                        gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null);
+                    } catch (SecurityException e) {
+                        Log.e(TAG, "Security exception sending write response", e);
+                    }
+                }
+            } else {
+                if (responseNeeded) {
+                    try {
+                        gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null);
+                    } catch (SecurityException e) {
+                        Log.e(TAG, "Security exception sending failure response", e);
+                    }
+                }
+            }
+        }
     };
 
     private boolean hasBluetoothPermissions() {
@@ -234,20 +336,72 @@ public class BleGattService extends Service {
         return true;
     }
 
+    private void sendBroadcast(String action) {
+        Intent intent = new Intent(action);
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+    }
+
+    private void showSyncNotification(PermitData permit, boolean isNewPermit, byte syncType) {
+        Intent notificationIntent = new Intent(this, MainActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+            this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
+
+        // Build message based on sync type
+        String message;
+        if (isNewPermit) {
+            message = "New permit synced to display";
+        } else if (syncType == SYNC_TYPE_FORCE) {
+            message = "Force refresh complete";
+        } else if (syncType == SYNC_TYPE_MANUAL) {
+            message = "Manual refresh complete";
+        } else {
+            message = "Permit synced to display";
+        }
+
+        String vehicleName = (permit.vehicleName != null && !permit.vehicleName.isEmpty())
+            ? permit.vehicleName
+            : permit.plateNumber;
+
+        Notification notification = new NotificationCompat.Builder(this, "permit_updates")
+            .setContentTitle(vehicleName)
+            .setContentText(message)
+            .setStyle(new NotificationCompat.BigTextStyle()
+                .bigText(message + "\nPermit " + permit.permitNumber + " • " + permit.plateNumber))
+            .setSmallIcon(R.drawable.ic_bluetooth)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setColor(0xFF2196F3)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build();
+
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        manager.notify(SYNC_NOTIFICATION_ID, notification);
+    }
+
     private void createNotificationChannel() {
-        NotificationChannel channel = new NotificationChannel(
+        NotificationManager manager = getSystemService(NotificationManager.class);
+
+        // BLE service channel (low importance, silent)
+        NotificationChannel serviceChannel = new NotificationChannel(
             CHANNEL_ID,
             "BLE Service",
             NotificationManager.IMPORTANCE_LOW);
-        channel.setDescription("Keeps BLE server running for ESP32 connection");
+        serviceChannel.setDescription("Keeps BLE server running for ESP32 connection");
+        manager.createNotificationChannel(serviceChannel);
 
-        NotificationManager manager = getSystemService(NotificationManager.class);
-        manager.createNotificationChannel(channel);
+        // Permit updates channel (default importance, shows notifications)
+        NotificationChannel updatesChannel = new NotificationChannel(
+            "permit_updates",
+            "Permit Updates",
+            NotificationManager.IMPORTANCE_DEFAULT);
+        updatesChannel.setDescription("Notifications when permits are synced to display");
+        manager.createNotificationChannel(updatesChannel);
     }
 
     @Override
     public void onDestroy() {
         Log.d(TAG, "Service destroyed");
+        isRunning = false;
 
         if (advertiser != null && isAdvertising) {
             try {

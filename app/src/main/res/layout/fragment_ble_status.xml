@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#1a1f2e"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Status Header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+
+            <View
+                android:id="@+id/statusIndicator"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:background="@drawable/status_indicator"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Initializing..."
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#e2e8f0" />
+
+        </LinearLayout>
+
+        <!-- Permit Card - Website Style -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_background"
+            android:padding="16dp"
+            android:layout_marginBottom="12dp">
+
+            <!-- Header row with permit number and badge -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="4dp">
+
+                <TextView
+                    android:id="@+id/tvPermitNumber"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="T6199100"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#e2e8f0" />
+
+                <TextView
+                    android:id="@+id/tvPermitPrice"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="$50.78"
+                    android:textSize="14sp"
+                    android:textColor="#4caf50"
+                    android:layout_marginEnd="8dp" />
+
+                <TextView
+                    android:id="@+id/tvPermitBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Current"
+                    android:textSize="11sp"
+                    android:textColor="#FFFFFF"
+                    android:background="@drawable/badge_green"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp" />
+
+            </LinearLayout>
+
+            <!-- Date range -->
+            <TextView
+                android:id="@+id/tvPermitDates"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Jan 06, 2026 - Jan 13, 2026"
+                android:textSize="13sp"
+                android:textColor="#8892a6"
+                android:layout_marginBottom="4dp" />
+
+            <!-- Vehicle info -->
+            <TextView
+                android:id="@+id/tvPermitVehicle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Hooptie (DBXH751)"
+                android:textSize="13sp"
+                android:textColor="#64b5f6" />
+
+        </LinearLayout>
+
+        <!-- Scheduled Permit Card -->
+        <LinearLayout
+            android:id="@+id/scheduledPermitCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_background"
+            android:padding="16dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+
+            <!-- Header row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="4dp">
+
+                <TextView
+                    android:id="@+id/tvScheduledNumber"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Pending"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#8892a6" />
+
+                <TextView
+                    android:id="@+id/tvScheduledPrice"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="14sp"
+                    android:textColor="#8892a6"
+                    android:layout_marginEnd="8dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Scheduled"
+                    android:textSize="11sp"
+                    android:textColor="#FFFFFF"
+                    android:background="@drawable/badge_blue"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp" />
+
+            </LinearLayout>
+
+            <!-- Date range -->
+            <TextView
+                android:id="@+id/tvScheduledDates"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textColor="#8892a6"
+                android:layout_marginBottom="4dp" />
+
+            <!-- Vehicle info -->
+            <TextView
+                android:id="@+id/tvScheduledVehicle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textColor="#64b5f6" />
+
+        </LinearLayout>
+
+        <!-- Display Out of Sync Warning -->
+        <LinearLayout
+            android:id="@+id/displaySyncWarning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@drawable/badge_orange"
+            android:padding="12dp"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Display needs updating"
+                android:textSize="14sp"
+                android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/btnUpdateDisplay"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="Update"
+                android:textSize="12sp"
+                android:textColor="#ff9800"
+                android:backgroundTint="#FFFFFF"
+                android:minWidth="0dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp" />
+
+        </LinearLayout>
+
+        <!-- Sync Status Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_background"
+            android:padding="16dp"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sync Status"
+                android:textSize="12sp"
+                android:textColor="#8892a6"
+                android:layout_marginBottom="12dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="GitHub Sync"
+                    android:textSize="14sp"
+                    android:textColor="#8892a6" />
+
+                <TextView
+                    android:id="@+id/tvGitHubSync"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Never"
+                    android:textSize="14sp"
+                    android:textColor="#4caf50" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Display Sync"
+                    android:textSize="14sp"
+                    android:textColor="#8892a6" />
+
+                <TextView
+                    android:id="@+id/tvDisplaySync"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Never"
+                    android:textSize="14sp"
+                    android:textColor="#64b5f6" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Connection Status Card -->
+        <LinearLayout
+            android:id="@+id/connectionCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_background"
+            android:padding="16dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tvConnectionStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Display connected - Updating..."
+                android:textSize="14sp"
+                android:textColor="#ff9800"
+                android:gravity="center" />
+
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnSync"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Sync"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#2196f3" />
+
+        <TextView
+            android:id="@+id/tvSyncStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textSize="13sp"
+            android:textColor="#8892a6"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnBattery"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Battery Settings"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#ff9800"
+            android:visibility="gone" />
+
+        <!-- Keep old tvPermit for compatibility but hidden -->
+        <TextView
+            android:id="@+id/tvPermit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+</ScrollView>

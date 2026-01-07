@@ -9,34 +9,34 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.util.Log;
-import android.view.View;
-import android.widget.Button;
-import android.widget.TextView;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
+import androidx.viewpager2.widget.ViewPager2;
 
-import java.text.SimpleDateFormat;
+import com.google.android.material.tabs.TabLayout;
+import com.google.android.material.tabs.TabLayoutMediator;
+
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
 
-    private TextView tvStatus;
-    private TextView tvPermit;
-    private TextView tvLastSync;
-    private Button btnSync;
-    private Button btnBattery;
+    private ViewPager2 viewPager;
+    private TabLayout tabLayout;
+    private MainPagerAdapter pagerAdapter;
 
-    private PermitRepository repository;
+    private final String[] tabTitles = {"Display Status", "History"};
 
     private final ActivityResultLauncher<String[]> permissionLauncher =
         registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
@@ -46,6 +46,7 @@ public class MainActivity extends AppCompatActivity {
             }
             if (allGranted) {
                 startBleService();
+                checkBatteryOptimizationFirstLaunch();
             } else {
                 Toast.makeText(this, "Bluetooth permissions required", Toast.LENGTH_LONG).show();
             }
@@ -65,20 +66,64 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        repository = new PermitRepository(this);
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
 
-        tvStatus = findViewById(R.id.tvStatus);
-        tvPermit = findViewById(R.id.tvPermit);
-        tvLastSync = findViewById(R.id.tvLastSync);
-        btnSync = findViewById(R.id.btnSync);
-        btnBattery = findViewById(R.id.btnBattery);
+        viewPager = findViewById(R.id.viewPager);
+        tabLayout = findViewById(R.id.tabLayout);
 
-        btnSync.setOnClickListener(v -> syncNow());
-        btnBattery.setOnClickListener(v -> openBatterySettings());
+        pagerAdapter = new MainPagerAdapter(this);
+        viewPager.setAdapter(pagerAdapter);
+
+        // Preload both tabs so History WebView loads in background
+        viewPager.setOffscreenPageLimit(2);
+
+        new TabLayoutMediator(tabLayout, viewPager, (tab, position) -> {
+            tab.setText(tabTitles[position]);
+        }).attach();
 
         createNotificationChannels();
-        updateUI();
         checkBluetoothAndStart();
+    }
+
+    private void checkBatteryOptimizationFirstLaunch() {
+        if (SamsungBatteryHelper.isBatteryOptimizationDisabled(this)) {
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+            .setTitle("Background Access Required")
+            .setMessage("This app needs to run in the background to sync parking permits with your display.\n\nPlease tap Allow on the next screen.")
+            .setPositiveButton("Continue", (d, w) -> {
+                try {
+                    Intent intent = SamsungBatteryHelper.getBatteryOptimizationIntent(this);
+                    startActivity(intent);
+                } catch (Exception e) {
+                    Log.e(TAG, "Could not request battery optimization exemption", e);
+                    showBatterySettingsDialog();
+                }
+            })
+            .setNegativeButton("Later", null)
+            .show();
+    }
+
+    private void showBatterySettingsDialog() {
+        String message = SamsungBatteryHelper.isSamsungDevice()
+            ? "For reliable background operation, please set this app to 'Unrestricted' in battery settings.\n\nThis prevents Samsung from killing the BLE service."
+            : "For reliable background operation, please disable battery optimization for this app.";
+
+        new AlertDialog.Builder(this)
+            .setTitle("Battery Settings")
+            .setMessage(message)
+            .setPositiveButton("Open Settings", (d, w) -> {
+                try {
+                    startActivity(SamsungBatteryHelper.getAppInfoIntent(this));
+                } catch (Exception e) {
+                    Toast.makeText(this, "Could not open settings", Toast.LENGTH_SHORT).show();
+                }
+            })
+            .setNegativeButton("Later", null)
+            .show();
     }
 
     private void checkBluetoothAndStart() {
@@ -86,7 +131,7 @@ public class MainActivity extends AppCompatActivity {
         BluetoothAdapter bluetoothAdapter = bluetoothManager.getAdapter();
 
         if (bluetoothAdapter == null) {
-            tvStatus.setText("Bluetooth not supported");
+            Toast.makeText(this, "Bluetooth not supported", Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -115,6 +160,10 @@ public class MainActivity extends AppCompatActivity {
                     != PackageManager.PERMISSION_GRANTED) {
                 needed.add(Manifest.permission.BLUETOOTH_CONNECT);
             }
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN)
+                    != PackageManager.PERMISSION_GRANTED) {
+                needed.add(Manifest.permission.BLUETOOTH_SCAN);
+            }
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -126,6 +175,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (needed.isEmpty()) {
             startBleService();
+            checkBatteryOptimizationFirstLaunch();
         } else {
             permissionLauncher.launch(needed.toArray(new String[0]));
         }
@@ -140,101 +190,36 @@ public class MainActivity extends AppCompatActivity {
             startService(serviceIntent);
         }
 
-        tvStatus.setText("BLE Server Running");
+        // Update fragment status
+        if (pagerAdapter.getBleStatusFragment() != null) {
+            pagerAdapter.getBleStatusFragment().setBleRunning();
+        }
 
         // Schedule daily sync
         AlarmReceiver.scheduleSync(this);
 
         // Do initial sync
-        syncNow();
+        doInitialSync();
     }
 
-    private void syncNow() {
-        btnSync.setEnabled(false);
-        tvStatus.setText("Syncing...");
-
-        GitHubSyncTask syncTask = new GitHubSyncTask(this);
-        syncTask.sync(new GitHubSyncTask.SyncCallback() {
-            @Override
-            public void onSuccess(PermitData permit, boolean isNew) {
-                btnSync.setEnabled(true);
-                tvStatus.setText("BLE Server Running");
-                updateUI();
-
-                String msg = isNew ? "New permit synced!" : "Permit up to date";
-                Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show();
-            }
-
-            @Override
-            public void onError(String error) {
-                btnSync.setEnabled(true);
-                tvStatus.setText("Sync failed: " + error);
-            }
-        });
-    }
-
-    private void updateUI() {
-        PermitData permit = repository.getPermit();
-
-        if (permit != null && permit.isValid()) {
-            tvPermit.setText(String.format(
-                "Permit: %s\nPlate: %s\nValid: %s\n    to %s",
-                permit.permitNumber, permit.plateNumber,
-                permit.validFrom, permit.validTo));
+    private void doInitialSync() {
+        BleStatusFragment fragment = pagerAdapter.getBleStatusFragment();
+        if (fragment != null) {
+            // Fragment will handle the sync
         } else {
-            tvPermit.setText("No permit data");
-        }
+            // Fragment not ready, sync directly
+            GitHubSyncTask syncTask = new GitHubSyncTask(this);
+            syncTask.sync(new GitHubSyncTask.SyncCallback() {
+                @Override
+                public void onSuccess(PermitData permit, boolean isNew) {
+                    Log.d(TAG, "Initial sync success");
+                }
 
-        long lastSync = repository.getLastSyncTime();
-        if (lastSync > 0) {
-            SimpleDateFormat sdf = new SimpleDateFormat("MMM d, h:mm a", Locale.getDefault());
-            tvLastSync.setText("Last sync: " + sdf.format(new Date(lastSync)));
-        } else {
-            tvLastSync.setText("Never synced");
-        }
-
-        // Update battery button
-        if (SamsungBatteryHelper.isSamsungDevice()) {
-            btnBattery.setVisibility(View.VISIBLE);
-            if (SamsungBatteryHelper.isBatteryOptimizationDisabled(this)) {
-                btnBattery.setText("Battery: Unrestricted");
-            } else {
-                btnBattery.setText("Fix Battery Settings");
-            }
-        } else {
-            if (!SamsungBatteryHelper.isBatteryOptimizationDisabled(this)) {
-                btnBattery.setVisibility(View.VISIBLE);
-                btnBattery.setText("Disable Battery Optimization");
-            } else {
-                btnBattery.setVisibility(View.GONE);
-            }
-        }
-    }
-
-    private void openBatterySettings() {
-        if (SamsungBatteryHelper.isSamsungDevice()) {
-            new AlertDialog.Builder(this)
-                .setTitle("Samsung Battery Settings")
-                .setMessage("To keep the app running:\n\n" +
-                    "1. Tap 'Open Settings' below\n" +
-                    "2. Find 'Parking Permit Sync'\n" +
-                    "3. Set to 'Unrestricted'\n\n" +
-                    "This prevents Samsung from killing the app.")
-                .setPositiveButton("Open Settings", (d, w) -> {
-                    try {
-                        startActivity(SamsungBatteryHelper.getAppInfoIntent(this));
-                    } catch (Exception e) {
-                        Toast.makeText(this, "Could not open settings", Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-        } else {
-            try {
-                startActivity(SamsungBatteryHelper.getBatteryOptimizationIntent(this));
-            } catch (Exception e) {
-                Toast.makeText(this, "Could not open battery settings", Toast.LENGTH_SHORT).show();
-            }
+                @Override
+                public void onError(String error) {
+                    Log.e(TAG, "Initial sync failed: " + error);
+                }
+            });
         }
     }
 
@@ -253,8 +238,71 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        updateUI();
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.main_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.action_notifications) {
+            openNotificationSettings();
+            return true;
+        } else if (id == R.id.action_email_settings) {
+            openEmailSettings();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void openNotificationSettings() {
+        new AlertDialog.Builder(this)
+            .setTitle("Notification Settings")
+            .setMessage("Choose which notifications to configure:")
+            .setPositiveButton("BLE Service", (d, w) -> openChannelSettings("ble_service_channel"))
+            .setNegativeButton("Permit Updates", (d, w) -> openChannelSettings("permit_updates"))
+            .setNeutralButton("All Settings", (d, w) -> openAllNotificationSettings())
+            .show();
+    }
+
+    private void openChannelSettings(String channelId) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent intent = new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS);
+            intent.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+            intent.putExtra(Settings.EXTRA_CHANNEL_ID, channelId);
+            startActivity(intent);
+        } else {
+            openAllNotificationSettings();
+        }
+    }
+
+    private void openAllNotificationSettings() {
+        Intent intent = new Intent();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            intent.setAction(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+            intent.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+        } else {
+            intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(android.net.Uri.parse("package:" + getPackageName()));
+        }
+        startActivity(intent);
+    }
+
+    private void openEmailSettings() {
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setData(android.net.Uri.parse("https://ilovekitty.ca/parking/settings/"));
+        startActivity(intent);
+    }
+
+    @Override
+    public void onBackPressed() {
+        // Handle WebView back navigation
+        WebViewFragment webViewFragment = pagerAdapter.getWebViewFragment();
+        if (viewPager.getCurrentItem() == 1 && webViewFragment != null && webViewFragment.canGoBack()) {
+            webViewFragment.goBack();
+        } else {
+            super.onBackPressed();
+        }
     }
 }

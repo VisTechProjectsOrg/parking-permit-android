@@ -8,9 +8,11 @@ import android.content.Intent;
 import android.os.Build;
 import android.util.Log;
 
+import java.util.Calendar;
+
 public class AlarmReceiver extends BroadcastReceiver {
     private static final String TAG = "AlarmReceiver";
-    private static final long SYNC_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+    private static final int SYNC_HOUR = 3; // 3 AM daily (1 hour after permit purchase cron)
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -32,7 +34,7 @@ public class AlarmReceiver extends BroadcastReceiver {
             }
         });
 
-        // Reschedule for next day
+        // Reschedule for next 3 AM
         scheduleSync(context);
     }
 
@@ -42,7 +44,7 @@ public class AlarmReceiver extends BroadcastReceiver {
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
             context, 0, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
 
-        long triggerTime = System.currentTimeMillis() + SYNC_INTERVAL;
+        long triggerTime = getNext3AM();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (alarmManager.canScheduleExactAlarms()) {
@@ -57,10 +59,27 @@ public class AlarmReceiver extends BroadcastReceiver {
                 AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent);
         }
 
-        Log.d(TAG, "Next sync scheduled in 24 hours");
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(triggerTime);
+        Log.d(TAG, "Next sync scheduled for 3 AM: " + cal.getTime());
     }
 
-    private void showNotification(Context context, PermitData permit) {
+    private static long getNext3AM() {
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(Calendar.HOUR_OF_DAY, SYNC_HOUR);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+
+        // If 3 AM already passed today, schedule for tomorrow
+        if (calendar.getTimeInMillis() <= System.currentTimeMillis()) {
+            calendar.add(Calendar.DAY_OF_YEAR, 1);
+        }
+
+        return calendar.getTimeInMillis();
+    }
+
+    private static void showNotification(Context context, PermitData permit) {
         android.app.NotificationManager manager =
             (android.app.NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
