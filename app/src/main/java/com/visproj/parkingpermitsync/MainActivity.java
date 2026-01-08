@@ -11,9 +11,13 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.Toast;
+
+import androidx.appcompat.widget.SwitchCompat;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -246,7 +250,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
-        if (id == R.id.action_notifications) {
+        if (id == R.id.action_display_settings) {
+            openDisplaySettings();
+            return true;
+        } else if (id == R.id.action_notifications) {
             openNotificationSettings();
             return true;
         } else if (id == R.id.action_email_settings) {
@@ -254,6 +261,45 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    private void openDisplaySettings() {
+        PermitRepository repository = new PermitRepository(this);
+        boolean currentFlip = repository.isDisplayFlipped();
+
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_display_settings, null);
+        SwitchCompat switchFlip = dialogView.findViewById(R.id.switchFlipDisplay);
+        switchFlip.setChecked(currentFlip);
+
+        new AlertDialog.Builder(this)
+            .setTitle("Display Settings")
+            .setView(dialogView)
+            .setPositiveButton("OK", (d, w) -> {
+                boolean newFlip = switchFlip.isChecked();
+                if (newFlip != currentFlip) {
+                    repository.setDisplayFlipped(newFlip);
+                    // Auto-sync to display when setting changes
+                    BleStatusFragment fragment = pagerAdapter.getBleStatusFragment();
+                    if (fragment != null) {
+                        Toast.makeText(this, "Syncing to display...", Toast.LENGTH_SHORT).show();
+                        fragment.triggerDisplaySync(new BleStatusFragment.DisplaySyncCallback() {
+                            @Override
+                            public void onSuccess() {
+                                Toast.makeText(MainActivity.this, "Display settings updated", Toast.LENGTH_SHORT).show();
+                            }
+
+                            @Override
+                            public void onError(String error) {
+                                Toast.makeText(MainActivity.this, "Sync failed - setting will apply on next sync", Toast.LENGTH_LONG).show();
+                            }
+                        });
+                    } else {
+                        Toast.makeText(this, "Setting saved - will apply on next sync", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
     }
 
     private void openNotificationSettings() {

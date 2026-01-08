@@ -248,6 +248,9 @@ public class BleGattService extends Service {
 
             if (PERMIT_CHAR_UUID.equals(characteristic.getUuid())) {
                 PermitData permit = repository.getPermit();
+                if (permit != null) {
+                    permit.displayFlipped = repository.isDisplayFlipped();
+                }
                 String json = permit != null ? permit.toJson() : "{}";
                 byte[] data = json.getBytes(StandardCharsets.UTF_8);
 

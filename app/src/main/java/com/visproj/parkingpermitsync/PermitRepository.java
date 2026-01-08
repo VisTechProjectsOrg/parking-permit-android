@@ -14,6 +14,7 @@ public class PermitRepository {
     private static final String KEY_DISPLAY_PERMIT = "display_permit";
     private static final String KEY_PREVIOUS_PERMIT = "previous_permit";
     private static final String KEY_GITHUB_URL = "github_url";
+    private static final String KEY_DISPLAY_FLIPPED = "display_flipped";
 
     private static final String DEFAULT_GITHUB_URL =
         "https://raw.githubusercontent.com/VisTechProjects/parking_pass_display/permit/permit.json";
@@ -135,5 +136,13 @@ public class PermitRepository {
 
     public void setGitHubUrl(String url) {
         prefs.edit().putString(KEY_GITHUB_URL, url).apply();
+    }
+
+    public boolean isDisplayFlipped() {
+        return prefs.getBoolean(KEY_DISPLAY_FLIPPED, false);
+    }
+
+    public void setDisplayFlipped(boolean flipped) {
+        prefs.edit().putBoolean(KEY_DISPLAY_FLIPPED, flipped).apply();
     }
 }

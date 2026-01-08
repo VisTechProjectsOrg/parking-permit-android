@@ -328,6 +328,76 @@ public class BleStatusFragment extends Fragment {
         }
     }
 
+    public interface DisplaySyncCallback {
+        void onSuccess();
+        void onError(String error);
+    }
+
+    private DisplaySyncCallback pendingSyncCallback;
+
+    public void triggerDisplaySync(DisplaySyncCallback callback) {
+        pendingSyncCallback = callback;
+        updateDisplayWithCallback(false);
+    }
+
+    private void updateDisplayWithCallback(boolean force) {
+        btnSync.setEnabled(false);
+        btnUpdateDisplay.setEnabled(false);
+        btnUpdateDisplay.setText("Updating...");
+        tvSyncStatus.setVisibility(View.VISIBLE);
+        tvSyncStatus.setText(force ? "Force updating display..." : "Scanning for display...");
+
+        displaySyncHelper.syncDisplay(force, new DisplaySyncHelper.SyncCallback() {
+            @Override
+            public void onStatus(String status) {
+                if (!isAdded()) return;
+                tvSyncStatus.setText(status);
+            }
+
+            @Override
+            public void onSuccess() {
+                if (!isAdded()) return;
+                btnSync.setEnabled(true);
+                btnUpdateDisplay.setEnabled(true);
+                btnUpdateDisplay.setText("Update");
+                tvSyncStatus.setVisibility(View.GONE);
+
+                PermitData permit = repository.getPermit();
+                if (permit != null && permit.permitNumber != null) {
+                    repository.setDisplayPermit(permit);
+                }
+                updateUI();
+
+                if (pendingSyncCallback != null) {
+                    pendingSyncCallback.onSuccess();
+                    pendingSyncCallback = null;
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                if (!isAdded()) return;
+                btnSync.setEnabled(true);
+                btnUpdateDisplay.setEnabled(true);
+                btnUpdateDisplay.setText("Update");
+                tvSyncStatus.setText(error);
+                tvSyncStatus.setTextColor(android.graphics.Color.parseColor("#f44336"));
+
+                handler.postDelayed(() -> {
+                    if (isAdded()) {
+                        tvSyncStatus.setVisibility(View.GONE);
+                        tvSyncStatus.setTextColor(android.graphics.Color.parseColor("#8892a6"));
+                    }
+                }, 3000);
+
+                if (pendingSyncCallback != null) {
+                    pendingSyncCallback.onError(error);
+                    pendingSyncCallback = null;
+                }
+            }
+        });
+    }
+
     private void updateUI() {
         if (!isAdded() || repository == null) return;
 

@@ -28,6 +28,9 @@ public class PermitData {
     @SerializedName("amountPaid")
     public String price = "";
 
+    @SerializedName("displayFlipped")
+    public boolean displayFlipped = false;
+
     public PermitData() {}
 
     public PermitData(String permitNumber, String plateNumber, String validFrom,
