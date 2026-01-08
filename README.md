@@ -12,6 +12,7 @@ Android companion app for the [parking-permit-display](https://github.com/VisTec
 
 - [parking-permit-display](https://github.com/VisTechProjects/parking-permit-display) - ESP32 e-ink firmware
 - [parking-permit-buyer](https://github.com/VisTechProjects/parking-permit-buyer) - Automated permit purchasing
+- [Parking permit website](https://ilovekitty.ca/parking/) - Web dashboard
 
 ## Setup
 
