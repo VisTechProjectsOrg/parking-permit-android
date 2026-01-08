@@ -12,6 +12,7 @@ public class PermitRepository {
     private static final String KEY_LAST_DISPLAY_SYNC = "last_display_sync_time";
     private static final String KEY_DISPLAY_PERMIT_NUMBER = "display_permit_number";
     private static final String KEY_DISPLAY_PERMIT = "display_permit";
+    private static final String KEY_PREVIOUS_PERMIT = "previous_permit";
     private static final String KEY_GITHUB_URL = "github_url";
 
     private static final String DEFAULT_GITHUB_URL =
@@ -23,6 +24,20 @@ public class PermitRepository {
     public PermitRepository(Context context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         gson = new Gson();
+
+        // One-time seed: if no previous permit exists, seed with T6199100 for price comparison
+        if (getPreviousPermit() == null) {
+            PermitData seed = new PermitData();
+            seed.permitNumber = "T6199100";
+            seed.plateNumber = "DBXH751";
+            seed.vehicleName = "Hooptie";
+            seed.validFrom = "Dec 30, 2025: 00:00";
+            seed.validTo = "Jan 06, 2026: 23:59";
+            seed.barcodeValue = "6199100";
+            seed.barcodeLabel = "00435";
+            seed.price = "$48.38";
+            setPreviousPermit(seed);
+        }
     }
 
     public PermitData getPermit() {
@@ -37,6 +52,13 @@ public class PermitRepository {
     }
 
     public void savePermit(PermitData permit) {
+        // Save current permit as previous before overwriting (if it's a different permit)
+        PermitData currentPermit = getPermit();
+        if (currentPermit != null && currentPermit.permitNumber != null &&
+            !currentPermit.permitNumber.equals(permit.permitNumber)) {
+            setPreviousPermit(currentPermit);
+        }
+
         prefs.edit()
             .putString(KEY_PERMIT, gson.toJson(permit))
             .putLong(KEY_LAST_SYNC, System.currentTimeMillis())
@@ -89,6 +111,22 @@ public class PermitRepository {
         String displayPermit = getDisplayPermitNumber();
         if (permit == null || permit.permitNumber == null) return false;
         return displayPermit == null || !permit.permitNumber.equals(displayPermit);
+    }
+
+    public PermitData getPreviousPermit() {
+        String json = prefs.getString(KEY_PREVIOUS_PERMIT, null);
+        if (json == null) return null;
+        try {
+            return gson.fromJson(json, PermitData.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public void setPreviousPermit(PermitData permit) {
+        prefs.edit()
+            .putString(KEY_PREVIOUS_PERMIT, gson.toJson(permit))
+            .apply();
     }
 
     public String getGitHubUrl() {

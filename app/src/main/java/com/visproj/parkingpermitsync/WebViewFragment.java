@@ -2,6 +2,7 @@ package com.visproj.parkingpermitsync;
 
 import android.os.Bundle;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
@@ -43,6 +44,39 @@ public class WebViewFragment extends Fragment {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+
+        // Prevent ViewPager from intercepting vertical scroll gestures in WebView
+        webView.setOnTouchListener(new View.OnTouchListener() {
+            private float startX, startY;
+            private boolean isScrolling = false;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        startX = event.getX();
+                        startY = event.getY();
+                        isScrolling = false;
+                        break;
+                    case MotionEvent.ACTION_MOVE:
+                        float dx = Math.abs(event.getX() - startX);
+                        float dy = Math.abs(event.getY() - startY);
+                        // If scrolling more vertically than horizontally, block ViewPager
+                        if (!isScrolling && (dx > 10 || dy > 10)) {
+                            isScrolling = true;
+                            if (dy > dx) {
+                                v.getParent().requestDisallowInterceptTouchEvent(true);
+                            }
+                        }
+                        break;
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        isScrolling = false;
+                        break;
+                }
+                return false;
+            }
+        });
 
         webView.setWebViewClient(new WebViewClient() {
             @Override

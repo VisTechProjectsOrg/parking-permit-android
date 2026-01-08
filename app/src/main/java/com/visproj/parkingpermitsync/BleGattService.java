@@ -269,6 +269,9 @@ public class BleGattService extends Service {
                     byte syncType = pendingSyncType;
                     boolean isManualSync = syncType == SYNC_TYPE_MANUAL || syncType == SYNC_TYPE_FORCE;
 
+                    // Get previous permit for price comparison before updating
+                    PermitData previousPermit = repository.getDisplayPermit();
+
                     Log.d(TAG, "Sync decision: lastSynced=" + lastSyncedPermit +
                         ", current=" + permit.permitNumber +
                         ", isNewPermit=" + isNewPermit +
@@ -283,7 +286,7 @@ public class BleGattService extends Service {
                     // - New permit (permit number actually changed) - notify
                     // AUTO sync with same/unknown permit should be silent
                     if (isManualSync || isNewPermit) {
-                        showSyncNotification(permit, isNewPermit, syncType);
+                        showSyncNotification(permit, previousPermit, isNewPermit, syncType);
                     }
 
                     // Reset sync type after handling
@@ -362,7 +365,7 @@ public class BleGattService extends Service {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
-    private void showSyncNotification(PermitData permit, boolean isNewPermit, byte syncType) {
+    private void showSyncNotification(PermitData permit, PermitData previousPermit, boolean isNewPermit, byte syncType) {
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(
             this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
@@ -383,11 +386,57 @@ public class BleGattService extends Service {
             ? permit.vehicleName
             : permit.plateNumber;
 
+        // Build expanded text with details
+        StringBuilder details = new StringBuilder();
+        details.append(message);
+        details.append("\nPermit ").append(permit.permitNumber).append(" • ").append(permit.plateNumber);
+        if (permit.validFrom != null && !permit.validFrom.isEmpty() &&
+            permit.validTo != null && !permit.validTo.isEmpty()) {
+            String from = permit.validFrom;
+            String to = permit.validTo;
+            // Strip redundant year/month from first date
+            // Format: "Jan 7, 2026: 16:00" or "Jan 7, 2026"
+            String fromBase = from.contains(":") ? from.split(":")[0].trim() : from;
+            String toBase = to.contains(":") ? to.split(":")[0].trim() : to;
+            // Check same year
+            if (fromBase.length() > 6 && toBase.length() > 6) {
+                String fromYear = fromBase.substring(fromBase.length() - 4);
+                String toYear = toBase.substring(toBase.length() - 4);
+                if (fromYear.equals(toYear) && fromYear.matches("\\d{4}")) {
+                    fromBase = fromBase.substring(0, fromBase.length() - 6); // Remove ", 2026"
+                    // Check same month (first 3 chars) -> "Jan 7 - 14, 2026"
+                    if (fromBase.length() >= 3 && toBase.length() >= 3 &&
+                        fromBase.substring(0, 3).equals(toBase.substring(0, 3))) {
+                        // Extract just the day from toBase (e.g., "Jan 14, 2026" -> "14, 2026")
+                        toBase = toBase.substring(4);
+                    }
+                }
+            }
+            details.append("\n").append(fromBase).append(" - ").append(toBase);
+        }
+        if (permit.price != null && !permit.price.isEmpty()) {
+            details.append("\nPaid: ").append(permit.price);
+            // Show price change if we have a previous permit with price
+            if (isNewPermit && previousPermit != null && previousPermit.price != null && !previousPermit.price.isEmpty()) {
+                try {
+                    double currentPrice = parsePrice(permit.price);
+                    double prevPrice = parsePrice(previousPermit.price);
+                    double diff = currentPrice - prevPrice;
+                    if (Math.abs(diff) >= 0.01) {
+                        String sign = diff > 0 ? "+" : "";
+                        details.append(String.format(" (%s$%.2f)", sign, diff));
+                    }
+                } catch (NumberFormatException e) {
+                    // Ignore if price parsing fails
+                }
+            }
+        }
+
         Notification notification = new NotificationCompat.Builder(this, "permit_updates")
             .setContentTitle(vehicleName)
             .setContentText(message)
             .setStyle(new NotificationCompat.BigTextStyle()
-                .bigText(message + "\nPermit " + permit.permitNumber + " • " + permit.plateNumber))
+                .bigText(details.toString()))
             .setSmallIcon(R.drawable.ic_bluetooth)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
@@ -397,6 +446,12 @@ public class BleGattService extends Service {
 
         NotificationManager manager = getSystemService(NotificationManager.class);
         manager.notify(SYNC_NOTIFICATION_ID, notification);
+    }
+
+    private double parsePrice(String price) throws NumberFormatException {
+        // Remove $ and any other non-numeric chars except decimal point
+        String cleaned = price.replaceAll("[^0-9.]", "");
+        return Double.parseDouble(cleaned);
     }
 
     private void createNotificationChannel() {

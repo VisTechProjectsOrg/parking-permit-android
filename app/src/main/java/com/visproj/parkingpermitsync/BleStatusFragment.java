@@ -4,7 +4,11 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -344,7 +348,30 @@ public class BleStatusFragment extends Fragment {
         if (currentPermit != null && currentPermit.isValid()) {
             tvPermitNumber.setText(currentPermit.permitNumber);
             if (currentPermit.price != null && !currentPermit.price.isEmpty()) {
-                tvPermitPrice.setText(currentPermit.price);
+                String priceText = currentPermit.price;
+                // Show price change compared to previous permit (week-over-week)
+                PermitData previousPermit = repository.getPreviousPermit();
+                String change = null;
+                int changeColor = 0;
+                if (previousPermit != null && previousPermit.price != null && !previousPermit.price.isEmpty()) {
+                    double[] result = getPriceChangeValue(currentPermit.price, previousPermit.price);
+                    if (result != null) {
+                        double diff = result[0];
+                        String sign = diff > 0 ? "+" : "";
+                        change = String.format("(%s$%.2f)", sign, diff);
+                        // Red for increase (paying more), green for decrease (saving money)
+                        changeColor = diff > 0 ? Color.parseColor("#f44336") : Color.parseColor("#4caf50");
+                    }
+                }
+                if (change != null) {
+                    // Format: "+$2.40 $50.78" with change colored
+                    String fullText = change + " " + priceText;
+                    SpannableString spannable = new SpannableString(fullText);
+                    spannable.setSpan(new ForegroundColorSpan(changeColor), 0, change.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    tvPermitPrice.setText(spannable);
+                } else {
+                    tvPermitPrice.setText(priceText);
+                }
                 tvPermitPrice.setVisibility(View.VISIBLE);
             } else {
                 tvPermitPrice.setVisibility(View.GONE);
@@ -457,13 +484,31 @@ public class BleStatusFragment extends Fragment {
         try {
             // Input format: "Dec 30, 2025: 00:00" or similar
             SimpleDateFormat inputFormat = new SimpleDateFormat("MMM dd, yyyy: HH:mm", Locale.US);
-            SimpleDateFormat outputFormat = new SimpleDateFormat("MMM dd, yyyy", Locale.US);
+            SimpleDateFormat monthYearFormat = new SimpleDateFormat("MMyyyy", Locale.US);
+            SimpleDateFormat yearFormat = new SimpleDateFormat("yyyy", Locale.US);
+            SimpleDateFormat dayFormat = new SimpleDateFormat("d", Locale.US);
+            SimpleDateFormat monthDayFormat = new SimpleDateFormat("MMM d", Locale.US);
 
             Date fromDate = inputFormat.parse(from);
             Date toDate = inputFormat.parse(to);
 
             if (fromDate != null && toDate != null) {
-                return outputFormat.format(fromDate) + " - " + outputFormat.format(toDate);
+                boolean sameYear = yearFormat.format(fromDate).equals(yearFormat.format(toDate));
+                boolean sameMonthYear = monthYearFormat.format(fromDate).equals(monthYearFormat.format(toDate));
+
+                if (sameMonthYear) {
+                    // Same month/year: "Jan 7 - 14, 2026"
+                    return monthDayFormat.format(fromDate) + " - " + dayFormat.format(toDate) + ", " +
+                           yearFormat.format(toDate);
+                } else if (sameYear) {
+                    // Different month, same year: "Dec 30 - Jan 6, 2026"
+                    return monthDayFormat.format(fromDate) + " - " + monthDayFormat.format(toDate) + ", " +
+                           yearFormat.format(toDate);
+                } else {
+                    // Different year: "Dec 30, 2025 - Jan 6, 2026"
+                    return monthDayFormat.format(fromDate) + ", " + yearFormat.format(fromDate) + " - " +
+                           monthDayFormat.format(toDate) + ", " + yearFormat.format(toDate);
+                }
             }
         } catch (ParseException e) {
             // Try alternate format without time
@@ -540,6 +585,20 @@ public class BleStatusFragment extends Fragment {
         } else {
             btnBattery.setVisibility(View.GONE);
         }
+    }
+
+    private double[] getPriceChangeValue(String currentPrice, String previousPrice) {
+        try {
+            double current = Double.parseDouble(currentPrice.replaceAll("[^0-9.]", ""));
+            double previous = Double.parseDouble(previousPrice.replaceAll("[^0-9.]", ""));
+            double diff = current - previous;
+            if (Math.abs(diff) >= 0.01) {
+                return new double[]{diff};
+            }
+        } catch (NumberFormatException e) {
+            // Ignore if price parsing fails
+        }
+        return null;
     }
 
     private void openBatterySettings() {
