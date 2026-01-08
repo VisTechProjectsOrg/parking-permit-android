@@ -112,4 +112,10 @@ public class WebViewFragment extends Fragment {
             webView.goBack();
         }
     }
+
+    public void loadUrl(String url) {
+        if (webView != null) {
+            webView.loadUrl(url);
+        }
+    }
 }

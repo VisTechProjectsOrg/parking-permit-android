@@ -290,9 +290,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void openEmailSettings() {
-        Intent intent = new Intent(Intent.ACTION_VIEW);
-        intent.setData(android.net.Uri.parse("https://ilovekitty.ca/parking/settings/"));
-        startActivity(intent);
+        WebViewFragment webViewFragment = pagerAdapter.getWebViewFragment();
+        if (webViewFragment != null) {
+            webViewFragment.loadUrl("https://ilovekitty.ca/parking/settings/");
+            viewPager.setCurrentItem(1);
+        }
     }
 
     @Override
