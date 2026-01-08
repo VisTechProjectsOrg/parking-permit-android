@@ -95,7 +95,7 @@ public class BleStatusFragment extends Fragment {
                         updateUI();
                         PermitData p = repository.getPermit();
                         String msg = p != null && p.permitNumber != null
-                            ? "New permit synced to display: " + p.permitNumber
+                            ? "Synced to display: " + p.permitNumber
                             : "Display updated!";
                         Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show();
                     }, 2000);
