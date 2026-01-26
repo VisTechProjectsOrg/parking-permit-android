@@ -45,11 +45,14 @@ public class MainActivity extends AppCompatActivity {
 
     private final ActivityResultLauncher<String[]> permissionLauncher =
         registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
-            boolean allGranted = true;
-            for (Boolean granted : result.values()) {
-                if (!granted) allGranted = false;
+            // Check only Bluetooth permissions - notifications are optional
+            boolean btGranted = true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                btGranted = Boolean.TRUE.equals(result.get(Manifest.permission.BLUETOOTH_ADVERTISE))
+                    && Boolean.TRUE.equals(result.get(Manifest.permission.BLUETOOTH_CONNECT))
+                    && Boolean.TRUE.equals(result.get(Manifest.permission.BLUETOOTH_SCAN));
             }
-            if (allGranted) {
+            if (btGranted) {
                 startBleService();
                 checkBatteryOptimizationFirstLaunch();
             } else {
