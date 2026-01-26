@@ -21,9 +21,6 @@
     <!-- Battery optimization exemption -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
-    <!-- Wake lock for reliable BLE -->
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-
     <!-- Boot receiver -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
