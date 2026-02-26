@@ -359,7 +359,7 @@ public class MainActivity extends AppCompatActivity {
     private void openEmailSettings() {
         WebViewFragment webViewFragment = pagerAdapter.getWebViewFragment();
         if (webViewFragment != null) {
-            webViewFragment.loadUrl("https://ilovekitty.ca/parking/settings/");
+            webViewFragment.loadUrl("https://fucktorontoparking.ca/settings/");
             viewPager.setCurrentItem(1);
         }
     }

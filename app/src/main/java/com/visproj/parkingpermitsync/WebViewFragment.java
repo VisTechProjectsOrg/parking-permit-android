@@ -17,7 +17,7 @@ import androidx.fragment.app.Fragment;
 
 public class WebViewFragment extends Fragment {
 
-    private static final String URL = "https://ilovekitty.ca/parking/history/";
+    private static final String URL = "https://fucktorontoparking.ca/history/";
 
     private WebView webView;
     private ProgressBar progressBar;
