@@ -375,7 +375,7 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
-    private void openEmailSettings() {
+private void openEmailSettings() {
         WebViewFragment webViewFragment = pagerAdapter.getWebViewFragment();
         if (webViewFragment != null) {
             webViewFragment.loadUrl("https://fucktorontoparking.ca/settings/");

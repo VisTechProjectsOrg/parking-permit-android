@@ -157,7 +157,10 @@ public class AlarmReceiver extends BroadcastReceiver {
         Notification notification = new Notification.Builder(context, "permit_updates")
             .setSmallIcon(R.drawable.ic_bluetooth)
             .setContentTitle("New Permit Available")
-            .setContentText("Permit " + permit.permitNumber + " - sync to display")
+            .setContentText("Permit " + permit.permitNumber + " ready to sync")
+            .setStyle(new Notification.BigTextStyle().bigText(
+                "Permit " + permit.permitNumber + " is ready.\n" +
+                "Power on the display, keep your phone nearby, and open the app to sync."))
             .setAutoCancel(true)
             .build();
 
@@ -170,24 +173,31 @@ public class AlarmReceiver extends BroadcastReceiver {
             (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
         String title = "Display Update Needed";
-        String text;
+        String shortText;
+        String longText;
         if (daysSinceNew <= 0) {
-            text = "Permit " + permit.permitNumber + " hasn't been synced to display";
+            shortText = "Permit " + permit.permitNumber + " hasn't been synced";
+            longText = "Permit " + permit.permitNumber + " hasn't been synced to the display yet.\n" +
+                "Power on the display, keep your phone nearby, and open the app to sync.";
         } else if (daysSinceNew == 1) {
-            text = "Permit " + permit.permitNumber + " - display is 1 day behind";
+            shortText = "Display is 1 day behind";
+            longText = "Permit " + permit.permitNumber + " - display is 1 day behind.\n" +
+                "Power on the display, keep your phone nearby, and open the app to sync.";
         } else {
-            text = "Permit " + permit.permitNumber + " - display is " + daysSinceNew + " days behind";
+            shortText = "Display is " + daysSinceNew + " days behind";
+            longText = "Permit " + permit.permitNumber + " - display is " + daysSinceNew + " days behind!\n" +
+                "Power on the display, keep your phone nearby, and open the app to sync.";
         }
 
         Notification.Builder builder = new Notification.Builder(context, "permit_updates")
             .setSmallIcon(R.drawable.ic_bluetooth)
             .setContentTitle(title)
-            .setContentText(text)
+            .setContentText(shortText)
+            .setStyle(new Notification.BigTextStyle().bigText(longText))
             .setAutoCancel(true);
 
         if (escalate) {
             builder.setCategory(Notification.CATEGORY_REMINDER);
-            // High priority channel for escalated reminders
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 android.app.NotificationChannel urgentChannel = new android.app.NotificationChannel(
                     "permit_urgent", "Urgent Permit Reminders",
@@ -197,7 +207,8 @@ public class AlarmReceiver extends BroadcastReceiver {
                 builder = new Notification.Builder(context, "permit_urgent")
                     .setSmallIcon(R.drawable.ic_bluetooth)
                     .setContentTitle(title)
-                    .setContentText(text)
+                    .setContentText(shortText)
+                    .setStyle(new Notification.BigTextStyle().bigText(longText))
                     .setAutoCancel(true)
                     .setCategory(Notification.CATEGORY_REMINDER);
             }
