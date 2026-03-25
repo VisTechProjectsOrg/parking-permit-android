@@ -15,6 +15,8 @@ public class PermitRepository {
     private static final String KEY_PREVIOUS_PERMIT = "previous_permit";
     private static final String KEY_GITHUB_URL = "github_url";
     private static final String KEY_DISPLAY_FLIPPED = "display_flipped";
+    private static final String KEY_NEW_PERMIT_DETECTED = "new_permit_detected_time";
+    private static final String KEY_REMINDERS_ENABLED = "reminders_enabled";
 
     private static final String DEFAULT_GITHUB_URL =
         "https://raw.githubusercontent.com/VisTechProjects/parking_pass_display/permit/permit.json";
@@ -104,6 +106,7 @@ public class PermitRepository {
             .putString(KEY_DISPLAY_PERMIT, gson.toJson(permit))
             .putString(KEY_DISPLAY_PERMIT_NUMBER, permit.permitNumber)
             .putLong(KEY_LAST_DISPLAY_SYNC, System.currentTimeMillis())
+            .remove(KEY_NEW_PERMIT_DETECTED)
             .apply();
     }
 
@@ -144,5 +147,25 @@ public class PermitRepository {
 
     public void setDisplayFlipped(boolean flipped) {
         prefs.edit().putBoolean(KEY_DISPLAY_FLIPPED, flipped).apply();
+    }
+
+    public long getNewPermitDetectedTime() {
+        return prefs.getLong(KEY_NEW_PERMIT_DETECTED, 0);
+    }
+
+    public void setNewPermitDetectedTime(long time) {
+        prefs.edit().putLong(KEY_NEW_PERMIT_DETECTED, time).apply();
+    }
+
+    public void clearNewPermitDetectedTime() {
+        prefs.edit().remove(KEY_NEW_PERMIT_DETECTED).apply();
+    }
+
+    public boolean isRemindersEnabled() {
+        return prefs.getBoolean(KEY_REMINDERS_ENABLED, true);
+    }
+
+    public void setRemindersEnabled(boolean enabled) {
+        prefs.edit().putBoolean(KEY_REMINDERS_ENABLED, enabled).apply();
     }
 }

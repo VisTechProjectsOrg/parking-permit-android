@@ -240,9 +240,14 @@ public class MainActivity extends AppCompatActivity {
             "permit_updates", "Permit Updates", NotificationManager.IMPORTANCE_DEFAULT);
         updateChannel.setDescription("Notifications for new permits");
 
+        NotificationChannel urgentChannel = new NotificationChannel(
+            "permit_urgent", "Urgent Permit Reminders", NotificationManager.IMPORTANCE_HIGH);
+        urgentChannel.setDescription("Persistent reminders when display is out of date");
+
         NotificationManager manager = getSystemService(NotificationManager.class);
         manager.createNotificationChannel(bleChannel);
         manager.createNotificationChannel(updateChannel);
+        manager.createNotificationChannel(urgentChannel);
     }
 
     @Override
@@ -324,12 +329,26 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void openNotificationSettings() {
+        PermitRepository repository = new PermitRepository(this);
+
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_notification_settings, null);
+        SwitchCompat switchReminders = dialogView.findViewById(R.id.switchReminders);
+        switchReminders.setChecked(repository.isRemindersEnabled());
+
+        switchReminders.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            repository.setRemindersEnabled(isChecked);
+            // Dismiss any active reminder notification when disabling
+            if (!isChecked) {
+                NotificationManager manager = getSystemService(NotificationManager.class);
+                manager.cancel(3); // NOTIFICATION_REMINDER
+            }
+        });
+
         new AlertDialog.Builder(this)
             .setTitle("Notification Settings")
-            .setMessage("Choose which notifications to configure:")
-            .setPositiveButton("BLE Service", (d, w) -> openChannelSettings("ble_service_channel"))
-            .setNegativeButton("Permit Updates", (d, w) -> openChannelSettings("permit_updates"))
-            .setNeutralButton("All Settings", (d, w) -> openAllNotificationSettings())
+            .setView(dialogView)
+            .setPositiveButton("OK", null)
+            .setNeutralButton("System Settings", (d, w) -> openAllNotificationSettings())
             .show();
     }
 
