@@ -17,6 +17,7 @@ public class PermitRepository {
     private static final String KEY_DISPLAY_FLIPPED = "display_flipped";
     private static final String KEY_NEW_PERMIT_DETECTED = "new_permit_detected_time";
     private static final String KEY_REMINDERS_ENABLED = "reminders_enabled";
+    private static final String KEY_CONSECUTIVE_SYNC_FAILURES = "consecutive_sync_failures";
 
     private static final String DEFAULT_GITHUB_URL =
         "https://raw.githubusercontent.com/VisTechProjects/parking_pass_display/permit/permit.json";
@@ -167,5 +168,18 @@ public class PermitRepository {
 
     public void setRemindersEnabled(boolean enabled) {
         prefs.edit().putBoolean(KEY_REMINDERS_ENABLED, enabled).apply();
+    }
+
+    public int getConsecutiveSyncFailures() {
+        return prefs.getInt(KEY_CONSECUTIVE_SYNC_FAILURES, 0);
+    }
+
+    public void incrementSyncFailures() {
+        prefs.edit().putInt(KEY_CONSECUTIVE_SYNC_FAILURES,
+            getConsecutiveSyncFailures() + 1).apply();
+    }
+
+    public void resetSyncFailures() {
+        prefs.edit().putInt(KEY_CONSECUTIVE_SYNC_FAILURES, 0).apply();
     }
 }

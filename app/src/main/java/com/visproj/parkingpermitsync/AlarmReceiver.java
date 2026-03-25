@@ -30,6 +30,10 @@ public class AlarmReceiver extends BroadcastReceiver {
 
     private static final int NOTIFICATION_NEW_PERMIT = 2;
     private static final int NOTIFICATION_REMINDER = 3;
+    private static final int NOTIFICATION_SYNC_FAILURE = 4;
+
+    // Notify after this many consecutive sync failures
+    private static final int FAILURE_THRESHOLD = 3;
 
     // Days after which reminder priority escalates
     private static final int ESCALATION_DAYS = 2;
@@ -49,13 +53,14 @@ public class AlarmReceiver extends BroadcastReceiver {
     private void handleSync(Context context) {
         Log.d(TAG, "3 AM sync triggered");
 
+        PermitRepository repo = new PermitRepository(context);
         GitHubSyncTask syncTask = new GitHubSyncTask(context);
         syncTask.sync(new GitHubSyncTask.SyncCallback() {
             @Override
             public void onSuccess(PermitData permit, boolean isNew) {
                 Log.d(TAG, "Sync successful: " + permit.permitNumber + " (new=" + isNew + ")");
+                repo.resetSyncFailures();
                 if (isNew) {
-                    PermitRepository repo = new PermitRepository(context);
                     repo.setNewPermitDetectedTime(System.currentTimeMillis());
                     showNewPermitNotification(context, permit);
                 }
@@ -64,6 +69,11 @@ public class AlarmReceiver extends BroadcastReceiver {
             @Override
             public void onError(String error) {
                 Log.e(TAG, "Sync failed: " + error);
+                repo.incrementSyncFailures();
+                int failures = repo.getConsecutiveSyncFailures();
+                if (failures >= FAILURE_THRESHOLD) {
+                    showSyncFailureNotification(context, failures);
+                }
             }
         });
 
@@ -98,6 +108,10 @@ public class AlarmReceiver extends BroadcastReceiver {
         Log.d(TAG, "Reminder: display out of sync for " + daysSinceNew + " days, escalated=" + escalate);
 
         showReminderNotification(context, permit, daysSinceNew, escalate);
+
+        // Reschedule both reminders so they survive Samsung alarm kills
+        scheduleAlarm(context, REMINDER_AM_HOUR, REQUEST_REMINDER_AM, TYPE_REMINDER);
+        scheduleAlarm(context, REMINDER_PM_HOUR, REQUEST_REMINDER_PM, TYPE_REMINDER);
     }
 
     // --- Scheduling ---
@@ -215,5 +229,22 @@ public class AlarmReceiver extends BroadcastReceiver {
         }
 
         manager.notify(NOTIFICATION_REMINDER, builder.build());
+    }
+
+    private static void showSyncFailureNotification(Context context, int failures) {
+        NotificationManager manager =
+            (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+
+        Notification notification = new Notification.Builder(context, "permit_updates")
+            .setSmallIcon(R.drawable.ic_bluetooth)
+            .setContentTitle("Permit Sync Failed")
+            .setContentText("Sync has failed " + failures + " times in a row")
+            .setStyle(new Notification.BigTextStyle().bigText(
+                "Permit sync has failed " + failures + " times in a row.\n" +
+                "Check your internet connection or open the app to retry."))
+            .setAutoCancel(true)
+            .build();
+
+        manager.notify(NOTIFICATION_SYNC_FAILURE, notification);
     }
 }
