@@ -459,7 +459,7 @@ public class BleStatusFragment extends Fragment {
             } else {
                 tvPermitPrice.setVisibility(View.GONE);
             }
-            tvPermitVehicle.setText(String.format("Hooptie (%s)", currentPermit.plateNumber));
+            tvPermitVehicle.setText(vehicleLabel(currentPermit));
 
             // Format dates nicely
             String dateRange = formatDateRange(currentPermit.validFrom, currentPermit.validTo);
@@ -484,6 +484,12 @@ public class BleStatusFragment extends Fragment {
         updateBatteryButton();
     }
 
+    // Build the "Name (PLATE)" label from the permit's own vehicleName (falls back if missing).
+    private String vehicleLabel(PermitData p) {
+        String name = (p.vehicleName != null && !p.vehicleName.isEmpty()) ? p.vehicleName : "Vehicle";
+        return String.format("%s (%s)", name, p.plateNumber);
+    }
+
     private void updateScheduledPermit(PermitData currentPermit, PermitData githubPermit, boolean hasDisplayPermit) {
         // Show scheduled card if GitHub has a different (newer) permit than what's on display
         if (githubPermit != null && githubPermit.isValid() &&
@@ -493,7 +499,7 @@ public class BleStatusFragment extends Fragment {
             tvScheduledNumber.setText(githubPermit.permitNumber);
             String dateRange = formatDateRange(githubPermit.validFrom, githubPermit.validTo);
             tvScheduledDates.setText(dateRange);
-            tvScheduledVehicle.setText(String.format("Hooptie (%s)", githubPermit.plateNumber));
+            tvScheduledVehicle.setText(vehicleLabel(githubPermit));
 
             if (githubPermit.price != null && !githubPermit.price.isEmpty()) {
                 tvScheduledPrice.setText(githubPermit.price);
@@ -544,7 +550,7 @@ public class BleStatusFragment extends Fragment {
                 tvScheduledNumber.setText("Pending");
                 String dateRange = outputFormat.format(nextStart) + " - " + outputFormat.format(nextEnd);
                 tvScheduledDates.setText(dateRange);
-                tvScheduledVehicle.setText(String.format("Hooptie (%s)", currentPermit.plateNumber));
+                tvScheduledVehicle.setText(vehicleLabel(currentPermit));
 
                 // Estimate price based on current
                 if (currentPermit.price != null && !currentPermit.price.isEmpty()) {
