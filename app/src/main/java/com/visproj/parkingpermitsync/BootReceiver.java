@@ -15,8 +15,10 @@ public class BootReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
-            Log.d(TAG, "Boot completed");
+        // Also after an app update, which kills the running service and clears its alarms
+        if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())
+                || Intent.ACTION_MY_PACKAGE_REPLACED.equals(intent.getAction())) {
+            Log.d(TAG, "Boot completed or app updated: " + intent.getAction());
 
             // Check if Bluetooth permissions are granted before starting service
             if (!hasBluetoothPermissions(context)) {

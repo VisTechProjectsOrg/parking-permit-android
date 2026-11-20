@@ -57,6 +57,7 @@ public class BleStatusFragment extends Fragment {
     private TextView tvScheduledVehicle;
     private TextView tvScheduledPrice;
     private LinearLayout displaySyncWarning;
+    private TextView tvCoverageWarning;
     private Button btnUpdateDisplay;
 
     private PermitRepository repository;
@@ -150,6 +151,7 @@ public class BleStatusFragment extends Fragment {
         tvScheduledVehicle = view.findViewById(R.id.tvScheduledVehicle);
         tvScheduledPrice = view.findViewById(R.id.tvScheduledPrice);
         displaySyncWarning = view.findViewById(R.id.displaySyncWarning);
+        tvCoverageWarning = view.findViewById(R.id.tvCoverageWarning);
         btnUpdateDisplay = view.findViewById(R.id.btnUpdateDisplay);
 
         displaySyncHelper = new DisplaySyncHelper(requireContext());
@@ -212,7 +214,7 @@ public class BleStatusFragment extends Fragment {
 
     private void syncNow() {
         setButtonEnabled(btnSync, false, COLOR_BLUE);
-        tvStatus.setText("Syncing from GitHub...");
+        tvStatus.setText("Checking for new permit...");
         setStatusIndicatorColor("#ff9800");
 
         GitHubSyncTask syncTask = new GitHubSyncTask(requireContext());
@@ -241,7 +243,7 @@ public class BleStatusFragment extends Fragment {
 
     private void showSyncMenu(View anchor) {
         PopupMenu popup = new PopupMenu(requireContext(), anchor);
-        popup.getMenu().add(0, 1, 0, "Sync from GitHub");
+        popup.getMenu().add(0, 1, 0, "Check for New Permit");
         popup.getMenu().add(0, 2, 1, "Update Display");
         popup.getMenu().add(0, 3, 2, "Force Update Display");
 
@@ -479,6 +481,12 @@ public class BleStatusFragment extends Fragment {
             tvPermitBadge.setBackgroundResource(R.drawable.badge_orange);
             scheduledPermitCard.setVisibility(View.GONE);
         }
+
+        // Coverage comes from the latest fetched permit, not what the display shows
+        String coverageMsg = githubPermit != null && githubPermit.isValid()
+            ? PermitData.coverageMessage(githubPermit.getCoverage()) : null;
+        tvCoverageWarning.setText(coverageMsg);
+        tvCoverageWarning.setVisibility(coverageMsg != null ? View.VISIBLE : View.GONE);
 
         updateSyncTimes();
         updateBatteryButton();

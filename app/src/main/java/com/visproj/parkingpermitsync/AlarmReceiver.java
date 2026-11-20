@@ -31,6 +31,7 @@ public class AlarmReceiver extends BroadcastReceiver {
     private static final int NOTIFICATION_NEW_PERMIT = 2;
     private static final int NOTIFICATION_REMINDER = 3;
     private static final int NOTIFICATION_SYNC_FAILURE = 4;
+    private static final int NOTIFICATION_COVERAGE = 5;
 
     // Notify after this many consecutive sync failures
     private static final int FAILURE_THRESHOLD = 3;
@@ -53,6 +54,12 @@ public class AlarmReceiver extends BroadcastReceiver {
     private void handleSync(Context context) {
         Log.d(TAG, "3 AM sync triggered");
 
+        // Reschedule first so a crash below can't end the daily chain
+        scheduleAlarm(context, SYNC_HOUR, REQUEST_SYNC, TYPE_SYNC);
+        BleGattService.ensureRunning(context);
+
+        // Keep the process alive until the network fetch finishes
+        final PendingResult pending = goAsync();
         PermitRepository repo = new PermitRepository(context);
         GitHubSyncTask syncTask = new GitHubSyncTask(context);
         syncTask.sync(new GitHubSyncTask.SyncCallback() {
@@ -64,6 +71,7 @@ public class AlarmReceiver extends BroadcastReceiver {
                     repo.setNewPermitDetectedTime(System.currentTimeMillis());
                     showNewPermitNotification(context, permit);
                 }
+                pending.finish();
             }
 
             @Override
@@ -74,15 +82,27 @@ public class AlarmReceiver extends BroadcastReceiver {
                 if (failures >= FAILURE_THRESHOLD) {
                     showSyncFailureNotification(context, failures);
                 }
+                pending.finish();
             }
         });
-
-        // Reschedule for next 3 AM
-        scheduleAlarm(context, SYNC_HOUR, REQUEST_SYNC, TYPE_SYNC);
     }
 
     private void handleReminder(Context context) {
+        // Reschedule both reminders first: returning early used to end the chain for good
+        scheduleAlarm(context, REMINDER_AM_HOUR, REQUEST_REMINDER_AM, TYPE_REMINDER);
+        scheduleAlarm(context, REMINDER_PM_HOUR, REQUEST_REMINDER_PM, TYPE_REMINDER);
+        BleGattService.ensureRunning(context);
+
         PermitRepository repo = new PermitRepository(context);
+
+        // Missed purchase alert is independent of the display reminder toggle
+        PermitData latest = repo.getPermit();
+        if (latest != null && latest.isValid()) {
+            String coverageMsg = PermitData.coverageMessage(latest.getCoverage());
+            if (coverageMsg != null) {
+                showCoverageNotification(context, latest, coverageMsg);
+            }
+        }
 
         if (!repo.isRemindersEnabled()) {
             Log.d(TAG, "Reminders disabled, skipping");
@@ -108,10 +128,6 @@ public class AlarmReceiver extends BroadcastReceiver {
         Log.d(TAG, "Reminder: display out of sync for " + daysSinceNew + " days, escalated=" + escalate);
 
         showReminderNotification(context, permit, daysSinceNew, escalate);
-
-        // Reschedule both reminders so they survive Samsung alarm kills
-        scheduleAlarm(context, REMINDER_AM_HOUR, REQUEST_REMINDER_AM, TYPE_REMINDER);
-        scheduleAlarm(context, REMINDER_PM_HOUR, REQUEST_REMINDER_PM, TYPE_REMINDER);
     }
 
     // --- Scheduling ---
@@ -229,6 +245,26 @@ public class AlarmReceiver extends BroadcastReceiver {
         }
 
         manager.notify(NOTIFICATION_REMINDER, builder.build());
+    }
+
+    private static void showCoverageNotification(Context context, PermitData permit, String message) {
+        NotificationManager manager =
+            (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        manager.createNotificationChannel(new android.app.NotificationChannel(
+            "permit_urgent", "Urgent Permit Reminders", NotificationManager.IMPORTANCE_HIGH));
+
+        String vehicle = (permit.vehicleName != null && !permit.vehicleName.isEmpty())
+            ? permit.vehicleName : permit.plateNumber;
+        Notification notification = new Notification.Builder(context, "permit_urgent")
+            .setSmallIcon(R.drawable.ic_bluetooth)
+            .setContentTitle(vehicle + ": not covered")
+            .setContentText(message)
+            .setStyle(new Notification.BigTextStyle().bigText(message))
+            .setCategory(Notification.CATEGORY_REMINDER)
+            .setAutoCancel(true)
+            .build();
+
+        manager.notify(NOTIFICATION_COVERAGE, notification);
     }
 
     private static void showSyncFailureNotification(Context context, int failures) {

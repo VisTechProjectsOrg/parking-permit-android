@@ -179,6 +179,18 @@
 
         </LinearLayout>
 
+        <!-- Coverage Warning (no permit bought for tomorrow, or expired) -->
+        <TextView
+            android:id="@+id/tvCoverageWarning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/badge_red"
+            android:padding="12dp"
+            android:layout_marginBottom="12dp"
+            android:textSize="14sp"
+            android:textColor="#FFFFFF"
+            android:visibility="gone" />
+
         <!-- Display Out of Sync Warning -->
         <LinearLayout
             android:id="@+id/displaySyncWarning"
@@ -240,7 +252,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="GitHub Sync"
+                    android:text="Permit Check"
                     android:textSize="14sp"
                     android:textColor="#8892a6" />
 

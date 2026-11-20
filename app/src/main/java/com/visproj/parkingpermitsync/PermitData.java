@@ -31,6 +31,16 @@ public class PermitData {
     @SerializedName("displayFlipped")
     public boolean displayFlipped = false;
 
+    // Latest validTo of any permit bought for this plate (from the site), same format as validTo.
+    // Lets the app tell "next permit already bought" apart from "nothing bought for tomorrow".
+    @SerializedName("coveredThrough")
+    public String coveredThrough = "";
+
+    public static final int COVERAGE_OK = 0;
+    public static final int COVERAGE_ENDS_TODAY = 1;   // nothing bought for tomorrow
+    public static final int COVERAGE_EXPIRED = 2;      // car is not covered right now
+    public static final int COVERAGE_UNKNOWN = 3;
+
     public PermitData() {}
 
     public PermitData(String permitNumber, String plateNumber, String validFrom,
@@ -59,5 +69,32 @@ public class PermitData {
 
     public String toJson() {
         return new Gson().toJson(this);
+    }
+
+    // Warning text for a coverage state, or null when there is nothing to warn about
+    public static String coverageMessage(int coverage) {
+        if (coverage == COVERAGE_ENDS_TODAY) return "No permit bought for tomorrow. Buy one before midnight.";
+        if (coverage == COVERAGE_EXPIRED) return "Permit expired. The car is not covered.";
+        return null;
+    }
+
+    // Whether the car is covered today and tomorrow, judged by the last day of any bought permit.
+    public int getCoverage() {
+        String end = (coveredThrough != null && !coveredThrough.isEmpty()) ? coveredThrough : validTo;
+        if (end == null || end.isEmpty()) return COVERAGE_UNKNOWN;
+        try {
+            java.util.Date endDate = new java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.US)
+                .parse(end.split(":")[0].trim());
+            if (endDate == null) return COVERAGE_UNKNOWN;
+            java.text.SimpleDateFormat day = new java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US);
+            String endDay = day.format(endDate);
+            String today = day.format(new java.util.Date());
+            int cmp = endDay.compareTo(today);
+            if (cmp < 0) return COVERAGE_EXPIRED;
+            if (cmp == 0) return COVERAGE_ENDS_TODAY;
+            return COVERAGE_OK;
+        } catch (java.text.ParseException e) {
+            return COVERAGE_UNKNOWN;
+        }
     }
 }

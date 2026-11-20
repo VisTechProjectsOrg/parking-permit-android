@@ -19,7 +19,10 @@ import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.BluetoothLeAdvertiser;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
@@ -83,6 +86,54 @@ public class BleGattService extends Service {
         bluetoothAdapter = bluetoothManager.getAdapter();
 
         createNotificationChannel();
+
+        // Bluetooth toggles (airplane mode, quick settings) kill the GATT server and advertising
+        registerReceiver(bluetoothStateReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
+    }
+
+    // Start the service if it isn't running, or nudge it to restart a dead server/advertiser.
+    // Called from the daily alarms so a killed service comes back without opening the app.
+    public static void ensureRunning(Context context) {
+        try {
+            Intent intent = new Intent(context, BleGattService.class);
+            context.startForegroundService(intent);
+        } catch (Exception e) {
+            // Android 12+ can refuse a background start (e.g. inexact alarm); next app open restarts it
+            Log.e(TAG, "Could not start BLE service", e);
+        }
+    }
+
+    private final BroadcastReceiver bluetoothStateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
+            if (state == BluetoothAdapter.STATE_ON) {
+                Log.d(TAG, "Bluetooth on, restarting BLE server");
+                startBleServer();
+            } else if (state == BluetoothAdapter.STATE_TURNING_OFF || state == BluetoothAdapter.STATE_OFF) {
+                Log.d(TAG, "Bluetooth off, tearing down BLE server");
+                stopBleServer();
+            }
+        }
+    };
+
+    private void stopBleServer() {
+        if (advertiser != null && isAdvertising) {
+            try {
+                advertiser.stopAdvertising(advertiseCallback);
+            } catch (Exception e) {
+                Log.e(TAG, "Error stopping advertising", e);
+            }
+        }
+        isAdvertising = false;
+        if (gattServer != null) {
+            try {
+                gattServer.close();
+            } catch (Exception e) {
+                Log.e(TAG, "Error closing GATT server", e);
+            }
+            gattServer = null;
+        }
     }
 
     @Override
@@ -126,6 +177,12 @@ public class BleGattService extends Service {
 
         if (!hasBluetoothPermissions()) {
             Log.e(TAG, "Missing Bluetooth permissions");
+            return;
+        }
+
+        // Already up (repeat start from the app or an alarm): only make sure we're advertising
+        if (gattServer != null) {
+            startAdvertising();
             return;
         }
 
@@ -216,7 +273,7 @@ public class BleGattService extends Service {
 
         @Override
         public void onStartFailure(int errorCode) {
-            isAdvertising = false;
+            isAdvertising = errorCode == ADVERTISE_FAILED_ALREADY_STARTED;
             Log.e(TAG, "BLE advertising failed: " + errorCode);
         }
     };
@@ -481,23 +538,8 @@ public class BleGattService extends Service {
     public void onDestroy() {
         Log.d(TAG, "Service destroyed");
         isRunning = false;
-
-        if (advertiser != null && isAdvertising) {
-            try {
-                advertiser.stopAdvertising(advertiseCallback);
-            } catch (SecurityException e) {
-                Log.e(TAG, "Security exception stopping advertising", e);
-            }
-        }
-
-        if (gattServer != null) {
-            try {
-                gattServer.close();
-            } catch (SecurityException e) {
-                Log.e(TAG, "Security exception closing GATT server", e);
-            }
-        }
-
+        unregisterReceiver(bluetoothStateReceiver);
+        stopBleServer();
         super.onDestroy();
     }
 

@@ -20,7 +20,7 @@ public class PermitRepository {
     private static final String KEY_CONSECUTIVE_SYNC_FAILURES = "consecutive_sync_failures";
 
     private static final String DEFAULT_GITHUB_URL =
-        "https://raw.githubusercontent.com/VisTechProjects/parking_pass_display/permit/permit.json";
+        "https://fucktorontoparking.ca/api/permit.php";
 
     private final SharedPreferences prefs;
     private final Gson gson;
@@ -135,7 +135,10 @@ public class PermitRepository {
     }
 
     public String getGitHubUrl() {
-        return prefs.getString(KEY_GITHUB_URL, DEFAULT_GITHUB_URL);
+        String url = prefs.getString(KEY_GITHUB_URL, DEFAULT_GITHUB_URL);
+        // The permit feed moved from the GitHub permit branch to the site
+        if (url.contains("githubusercontent.com")) return DEFAULT_GITHUB_URL;
+        return url;
     }
 
     public void setGitHubUrl(String url) {
