@@ -45,6 +45,7 @@ public class BleGattService extends Service {
     public static final String ACTION_DEVICE_CONNECTED = "com.visproj.parkingpermitsync.DEVICE_CONNECTED";
     public static final String ACTION_DEVICE_DISCONNECTED = "com.visproj.parkingpermitsync.DEVICE_DISCONNECTED";
     public static final String ACTION_PERMIT_READ = "com.visproj.parkingpermitsync.PERMIT_READ";
+    public static final String ACTION_DISPLAY_STATUS = "com.visproj.parkingpermitsync.DISPLAY_STATUS";
 
     // BLE UUIDs - ESP32 will use these to find and read permit data
     // Using standard Bluetooth Base UUID format for better compatibility
@@ -58,6 +59,12 @@ public class BleGattService extends Service {
     private static final byte SYNC_TYPE_FORCE = 3;   // Long press - always show notification
 
     private byte pendingSyncType = SYNC_TYPE_AUTO;
+    private byte[] pendingPermitJson;
+
+    // Battery display writes "shownPermit,cachedPermit,batteryMv,fwVersion" after each sync
+    public static final UUID STATUS_CHAR_UUID = UUID.fromString("0000ff03-0000-1000-8000-00805f9b34fb");
+    private static final int BATTERY_LOW_PERCENT = 20;
+    private static final int BATTERY_NOTIFICATION_ID = 6;
 
     private static final String CHANNEL_ID = "ble_service_channel";
     private static final int NOTIFICATION_ID = 1;
@@ -209,8 +216,14 @@ public class BleGattService extends Service {
                 BluetoothGattCharacteristic.PROPERTY_WRITE | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
                 BluetoothGattCharacteristic.PERMISSION_WRITE);
 
+            BluetoothGattCharacteristic statusChar = new BluetoothGattCharacteristic(
+                STATUS_CHAR_UUID,
+                BluetoothGattCharacteristic.PROPERTY_WRITE | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
+                BluetoothGattCharacteristic.PERMISSION_WRITE);
+
             service.addCharacteristic(permitChar);
             service.addCharacteristic(syncTypeChar);
+            service.addCharacteristic(statusChar);
             gattServer.addService(service);
 
             Log.d(TAG, "GATT server started");
@@ -305,11 +318,14 @@ public class BleGattService extends Service {
 
             if (PERMIT_CHAR_UUID.equals(characteristic.getUuid())) {
                 PermitData permit = repository.getPermit();
-                if (permit != null) {
-                    permit.displayFlipped = repository.isDisplayFlipped();
+                // Built once per read: a long read comes in several offset requests and the
+                // JSON carries the current time, so rebuilding would splice two versions
+                if (offset == 0 || pendingPermitJson == null) {
+                    pendingPermitJson = (permit != null
+                        ? permit.toDisplayJson(repository.isDisplayFlipped()) : "{}")
+                        .getBytes(StandardCharsets.UTF_8);
                 }
-                String json = permit != null ? permit.toJson() : "{}";
-                byte[] data = json.getBytes(StandardCharsets.UTF_8);
+                byte[] data = pendingPermitJson;
 
                 Log.d(TAG, "Permit read request, sending " + data.length + " bytes");
 
@@ -379,7 +395,18 @@ public class BleGattService extends Service {
                 BluetoothGattCharacteristic characteristic, boolean preparedWrite,
                 boolean responseNeeded, int offset, byte[] value) {
 
-            if (SYNC_TYPE_CHAR_UUID.equals(characteristic.getUuid())) {
+            if (STATUS_CHAR_UUID.equals(characteristic.getUuid())) {
+                if (value != null && value.length > 0) {
+                    handleDisplayStatus(new String(value, StandardCharsets.UTF_8));
+                }
+                if (responseNeeded) {
+                    try {
+                        gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null);
+                    } catch (SecurityException e) {
+                        Log.e(TAG, "Security exception sending write response", e);
+                    }
+                }
+            } else if (SYNC_TYPE_CHAR_UUID.equals(characteristic.getUuid())) {
                 if (value != null && value.length > 0) {
                     pendingSyncType = value[0];
                     Log.d(TAG, "Sync type set to: " + pendingSyncType);
@@ -506,6 +533,34 @@ public class BleGattService extends Service {
 
         NotificationManager manager = getSystemService(NotificationManager.class);
         manager.notify(SYNC_NOTIFICATION_ID, notification);
+    }
+
+    private void handleDisplayStatus(String status) {
+        Log.d(TAG, "Display status: " + status);
+        String[] parts = status.split(",");
+        if (parts.length < 3) return;
+        int mv;
+        try {
+            mv = Integer.parseInt(parts[2].trim());
+        } catch (NumberFormatException e) {
+            return;
+        }
+        repository.saveDisplayStatus(parts[0].trim(), parts[1].trim(), mv);
+        sendBroadcast(ACTION_DISPLAY_STATUS);
+
+        if (mv > 0 && PermitRepository.batteryPercent(mv) <= BATTERY_LOW_PERCENT
+                && !repository.isBatteryLowNotified()) {
+            repository.setBatteryLowNotified();
+            int pct = PermitRepository.batteryPercent(mv);
+            String text = "Display battery is at " + pct + "%. Charge it soon.";
+            Notification n = new NotificationCompat.Builder(this, "permit_updates")
+                .setContentTitle("Charge the display")
+                .setContentText(text)
+                .setSmallIcon(R.drawable.ic_bluetooth)
+                .setAutoCancel(true)
+                .build();
+            getSystemService(NotificationManager.class).notify(BATTERY_NOTIFICATION_ID, n);
+        }
     }
 
     private double parsePrice(String price) throws NumberFormatException {

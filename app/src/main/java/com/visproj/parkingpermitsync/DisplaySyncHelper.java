@@ -98,7 +98,7 @@ public class DisplaySyncHelper {
                 if (isScanning) {
                     stopScan();
                     if (callback != null) {
-                        callback.onError("Display not found");
+                        callback.onError("Display is asleep. Press its button to sync.");
                     }
                 }
             }, SCAN_TIMEOUT);

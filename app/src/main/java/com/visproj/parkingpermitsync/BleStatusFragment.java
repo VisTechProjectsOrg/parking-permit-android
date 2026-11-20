@@ -58,6 +58,8 @@ public class BleStatusFragment extends Fragment {
     private TextView tvScheduledPrice;
     private LinearLayout displaySyncWarning;
     private TextView tvCoverageWarning;
+    private LinearLayout displayBatteryRow;
+    private TextView tvDisplayBattery;
     private Button btnUpdateDisplay;
 
     private PermitRepository repository;
@@ -88,6 +90,9 @@ public class BleStatusFragment extends Fragment {
                     btnUpdateDisplay.setText("Update");
                     updateUI();
                     break;
+                case BleGattService.ACTION_DISPLAY_STATUS:
+                    updateUI();
+                    break;
                 case BleGattService.ACTION_PERMIT_READ:
                     showConnectionStatus("Display updating...", "#4caf50");
                     btnUpdateDisplay.setText("Updating...");
@@ -96,11 +101,8 @@ public class BleStatusFragment extends Fragment {
                         hideConnectionStatus();
                         setButtonEnabled(btnUpdateDisplay, true, COLOR_WHITE);
                         btnUpdateDisplay.setText("Update");
-                        // Save the permit as display permit
-                        PermitData permit = repository.getPermit();
-                        if (permit != null && permit.permitNumber != null) {
-                            repository.setDisplayPermit(permit);
-                        }
+                        // The service already recorded what the display took (and what it
+                        // reported back); just refresh
                         updateUI();
                         PermitData p = repository.getPermit();
                         String msg;
@@ -152,6 +154,8 @@ public class BleStatusFragment extends Fragment {
         tvScheduledPrice = view.findViewById(R.id.tvScheduledPrice);
         displaySyncWarning = view.findViewById(R.id.displaySyncWarning);
         tvCoverageWarning = view.findViewById(R.id.tvCoverageWarning);
+        displayBatteryRow = view.findViewById(R.id.displayBatteryRow);
+        tvDisplayBattery = view.findViewById(R.id.tvDisplayBattery);
         btnUpdateDisplay = view.findViewById(R.id.btnUpdateDisplay);
 
         displaySyncHelper = new DisplaySyncHelper(requireContext());
@@ -185,6 +189,7 @@ public class BleStatusFragment extends Fragment {
         filter.addAction(BleGattService.ACTION_DEVICE_CONNECTED);
         filter.addAction(BleGattService.ACTION_DEVICE_DISCONNECTED);
         filter.addAction(BleGattService.ACTION_PERMIT_READ);
+        filter.addAction(BleGattService.ACTION_DISPLAY_STATUS);
         LocalBroadcastManager.getInstance(requireContext()).registerReceiver(bleReceiver, filter);
 
         handler.post(updateRunnable);
@@ -670,6 +675,22 @@ public class BleStatusFragment extends Fragment {
             tvDisplaySync.setText(TimeUtils.getRelativeTime(repository.getLastDisplaySyncTime()));
             tvDisplaySync.setTextColor(android.graphics.Color.parseColor("#64b5f6"));
             displaySyncWarning.setVisibility(View.GONE);
+        }
+
+        // "78% · 4 months left", as of the display's last check-in
+        int mv = repository.getDisplayBatteryMv();
+        if (mv > 0) {
+            int pct = PermitRepository.batteryPercent(mv);
+            int days = repository.estimateBatteryDaysLeft();
+            String text = pct + "%";
+            if (days > 60) text += " · " + (days / 30) + " months left";
+            else if (days >= 0) text += " · " + days + (days == 1 ? " day left" : " days left");
+            tvDisplayBattery.setText(text);
+            tvDisplayBattery.setTextColor(Color.parseColor(
+                pct <= 20 ? "#f44336" : pct <= 40 ? "#ff9800" : "#4caf50"));
+            displayBatteryRow.setVisibility(View.VISIBLE);
+        } else {
+            displayBatteryRow.setVisibility(View.GONE);
         }
     }
 

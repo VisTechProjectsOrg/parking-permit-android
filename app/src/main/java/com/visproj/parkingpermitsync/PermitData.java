@@ -36,6 +36,11 @@ public class PermitData {
     @SerializedName("coveredThrough")
     public String coveredThrough = "";
 
+    // The other bought permit still in play (usually next week's). The display caches it and
+    // switches to it on its own at validFrom, so it doesn't need the phone at midnight.
+    @SerializedName("next")
+    public PermitData next;
+
     public static final int COVERAGE_OK = 0;
     public static final int COVERAGE_ENDS_TODAY = 1;   // nothing bought for tomorrow
     public static final int COVERAGE_EXPIRED = 2;      // car is not covered right now
@@ -69,6 +74,29 @@ public class PermitData {
 
     public String toJson() {
         return new Gson().toJson(this);
+    }
+
+    // What the display reads over BLE: only the fields it draws, the cached next permit, and
+    // the phone's local time (the display has no other clock source). Kept small so it fits
+    // one 512-byte characteristic read.
+    public String toDisplayJson(boolean flipped) {
+        com.google.gson.JsonObject o = displayFields(this);
+        o.addProperty("displayFlipped", flipped);
+        if (next != null && next.isComplete()) o.add("next", displayFields(next));
+        long nowMs = System.currentTimeMillis();
+        o.addProperty("now", (nowMs + java.util.TimeZone.getDefault().getOffset(nowMs)) / 1000);
+        return o.toString();
+    }
+
+    private static com.google.gson.JsonObject displayFields(PermitData p) {
+        com.google.gson.JsonObject o = new com.google.gson.JsonObject();
+        o.addProperty("permitNumber", p.permitNumber);
+        o.addProperty("plateNumber", p.plateNumber);
+        o.addProperty("validFrom", p.validFrom);
+        o.addProperty("validTo", p.validTo);
+        o.addProperty("barcodeValue", p.barcodeValue);
+        o.addProperty("barcodeLabel", p.barcodeLabel);
+        return o;
     }
 
     // Warning text for a coverage state, or null when there is nothing to warn about
