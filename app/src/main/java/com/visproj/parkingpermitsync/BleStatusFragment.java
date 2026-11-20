@@ -43,8 +43,6 @@ public class BleStatusFragment extends Fragment {
     private TextView tvPermitBadge;
     private TextView tvPermitDates;
     private TextView tvPermitVehicle;
-    private TextView tvGitHubSync;
-    private TextView tvDisplaySync;
     private TextView tvConnectionStatus;
     private LinearLayout connectionCard;
     private View statusIndicator;
@@ -58,7 +56,7 @@ public class BleStatusFragment extends Fragment {
     private TextView tvScheduledPrice;
     private LinearLayout displaySyncWarning;
     private TextView tvCoverageWarning;
-    private LinearLayout displayBatteryRow;
+    private BatteryView batteryView;
     private TextView tvDisplayBattery;
     private Button btnUpdateDisplay;
 
@@ -139,8 +137,6 @@ public class BleStatusFragment extends Fragment {
         tvPermitBadge = view.findViewById(R.id.tvPermitBadge);
         tvPermitDates = view.findViewById(R.id.tvPermitDates);
         tvPermitVehicle = view.findViewById(R.id.tvPermitVehicle);
-        tvGitHubSync = view.findViewById(R.id.tvGitHubSync);
-        tvDisplaySync = view.findViewById(R.id.tvDisplaySync);
         tvConnectionStatus = view.findViewById(R.id.tvConnectionStatus);
         connectionCard = view.findViewById(R.id.connectionCard);
         statusIndicator = view.findViewById(R.id.statusIndicator);
@@ -154,8 +150,9 @@ public class BleStatusFragment extends Fragment {
         tvScheduledPrice = view.findViewById(R.id.tvScheduledPrice);
         displaySyncWarning = view.findViewById(R.id.displaySyncWarning);
         tvCoverageWarning = view.findViewById(R.id.tvCoverageWarning);
-        displayBatteryRow = view.findViewById(R.id.displayBatteryRow);
+        batteryView = view.findViewById(R.id.batteryView);
         tvDisplayBattery = view.findViewById(R.id.tvDisplayBattery);
+        view.findViewById(R.id.displayBatteryGroup).setOnClickListener(v -> showDisplayDetails());
         btnUpdateDisplay = view.findViewById(R.id.btnUpdateDisplay);
 
         displaySyncHelper = new DisplaySyncHelper(requireContext());
@@ -662,36 +659,59 @@ public class BleStatusFragment extends Fragment {
         }
     }
 
+    // Bolt only right after a full reading: the display can't see the charger, so 4.15V+
+    // reported in the last 30 minutes is the best sign that it's on USB right now
+    private static final int CHARGING_MV = 4150;
+    private static final long CHARGING_FRESH_MS = 30 * 60 * 1000;
+
     private void updateSyncTimes() {
         if (!isAdded() || repository == null) return;
-        tvGitHubSync.setText(TimeUtils.getRelativeTime(repository.getLastSyncTime()));
 
-        // Show out-of-sync warning if display has old permit
-        if (repository.isDisplayOutOfSync()) {
-            tvDisplaySync.setText("Out of sync");
-            tvDisplaySync.setTextColor(android.graphics.Color.parseColor("#f44336"));
-            displaySyncWarning.setVisibility(View.VISIBLE);
-        } else {
-            tvDisplaySync.setText(TimeUtils.getRelativeTime(repository.getLastDisplaySyncTime()));
-            tvDisplaySync.setTextColor(android.graphics.Color.parseColor("#64b5f6"));
-            displaySyncWarning.setVisibility(View.GONE);
-        }
+        displaySyncWarning.setVisibility(repository.isDisplayOutOfSync() ? View.VISIBLE : View.GONE);
 
-        // "78% · 4 months left", as of the display's last check-in
         int mv = repository.getDisplayBatteryMv();
         if (mv > 0) {
             int pct = PermitRepository.batteryPercent(mv);
-            int days = repository.estimateBatteryDaysLeft();
-            String text = pct + "%";
-            if (days > 60) text += " · " + (days / 30) + " months left";
-            else if (days >= 0) text += " · " + days + (days == 1 ? " day left" : " days left");
-            tvDisplayBattery.setText(text);
-            tvDisplayBattery.setTextColor(Color.parseColor(
-                pct <= 20 ? "#f44336" : pct <= 40 ? "#ff9800" : "#4caf50"));
-            displayBatteryRow.setVisibility(View.VISIBLE);
+            batteryView.setLevel(pct, isDisplayCharging(mv));
+            tvDisplayBattery.setText(pct + "%");
         } else {
-            displayBatteryRow.setVisibility(View.GONE);
+            batteryView.setLevel(-1, false);
+            tvDisplayBattery.setText("--");
         }
+    }
+
+    private boolean isDisplayCharging(int mv) {
+        return mv >= CHARGING_MV
+            && System.currentTimeMillis() - repository.getDisplayBatteryTime() < CHARGING_FRESH_MS;
+    }
+
+    private void showDisplayDetails() {
+        int mv = repository.getDisplayBatteryMv();
+        StringBuilder msg = new StringBuilder();
+        if (mv > 0) {
+            int pct = PermitRepository.batteryPercent(mv);
+            int days = repository.estimateBatteryDaysLeft();
+            msg.append("Battery: ").append(pct).append("%");
+            if (isDisplayCharging(mv)) msg.append(", charging");
+            msg.append("\n");
+            if (days > 60) msg.append("About ").append(days / 30).append(" months left\n");
+            else if (days >= 0) msg.append("About ").append(days).append(days == 1 ? " day left\n" : " days left\n");
+            else msg.append("Time left shows after 2 days on battery\n");
+            msg.append(String.format(Locale.US, "%.2f V, read %s\n\n", mv / 1000.0,
+                TimeUtils.getRelativeTime(repository.getDisplayBatteryTime()).toLowerCase(Locale.US)));
+        } else {
+            msg.append("No battery reading yet\n\n");
+        }
+        msg.append("Display synced: ").append(repository.isDisplayOutOfSync() ? "out of sync"
+            : TimeUtils.getRelativeTime(repository.getLastDisplaySyncTime()).toLowerCase(Locale.US)).append("\n");
+        msg.append("Permit checked: ")
+            .append(TimeUtils.getRelativeTime(repository.getLastSyncTime()).toLowerCase(Locale.US));
+
+        new AlertDialog.Builder(requireContext())
+            .setTitle("Display")
+            .setMessage(msg.toString())
+            .setPositiveButton("OK", null)
+            .show();
     }
 
     private void updateBatteryButton() {
