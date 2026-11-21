@@ -37,7 +37,7 @@ public class SamsungBatteryHelper {
     // Samsung renames the setting and splits it into several switches
     public static String getUnusedAppPauseInstruction() {
         return isSamsungDevice()
-            ? "Turn off everything under 'Manage app if unused' on the next screen."
+            ? "On the next screen, tap 'Manage app if unused' and turn everything off."
             : "Turn off 'Pause app activity if unused' on the next screen.";
     }
 
