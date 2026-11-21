@@ -169,7 +169,7 @@ public class BleGattService extends Service {
             this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
 
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Parking Permit Sync")
+            .setContentTitle(getString(R.string.app_name))
             .setContentText("Keeping your display up to date")
             .setSmallIcon(R.drawable.ic_bluetooth)
             .setContentIntent(pendingIntent)

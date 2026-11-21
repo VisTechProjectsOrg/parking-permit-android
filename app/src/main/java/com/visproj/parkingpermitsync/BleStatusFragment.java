@@ -747,7 +747,7 @@ public class BleStatusFragment extends Fragment {
                 .setTitle("Samsung Battery Settings")
                 .setMessage("To keep the app running:\n\n" +
                     "1. Tap 'Open Settings' below\n" +
-                    "2. Find 'Parking Permit Sync'\n" +
+                    "2. Find '" + getString(R.string.app_name) + "'\n" +
                     "3. Set to 'Unrestricted'\n\n" +
                     "This prevents Samsung from killing the app.")
                 .setPositiveButton("Open Settings", (d, w) -> {
