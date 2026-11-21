@@ -431,7 +431,7 @@ public class BleStatusFragment extends Fragment {
                 cardNext = null;
                 cardEstimateBase = latestOrCurrent(currentPermit);
                 tvScheduledNumber.setText("Pending");
-                setScheduledBadge("Not bought yet", R.drawable.badge_orange);
+                setEstimateBadge(cardEstimateBase);
                 String dateRange = outputFormat.format(nextStart) + " - " + outputFormat.format(nextEnd);
                 tvScheduledDates.setText(dateRange);
                 tvScheduledVehicle.setText(vehicleLabel(currentPermit));
@@ -526,6 +526,28 @@ public class BleStatusFragment extends Fragment {
             .setMessage(msg.toString().trim())
             .setPositiveButton("OK", null)
             .show();
+    }
+
+    // Not bought yet: orange only when it needs you (autobuyer off), otherwise when it buys
+    private void setEstimateBadge(PermitData base) {
+        if (base != null && Boolean.FALSE.equals(base.autobuyer)) {
+            setScheduledBadge("Not bought", R.drawable.badge_orange);
+            return;
+        }
+        String when = null;
+        if (base != null && base.nextBuy != null && !base.nextBuy.isEmpty()) {
+            try {
+                Date d = new SimpleDateFormat("MMM dd, yyyy: HH:mm", Locale.US).parse(base.nextBuy);
+                if (d != null) {
+                    SimpleDateFormat day = new SimpleDateFormat("yyyyMMdd", Locale.US);
+                    when = day.format(d).equals(day.format(new Date())) ? "today"
+                        : new SimpleDateFormat("MMM d", Locale.US).format(d);
+                }
+            } catch (ParseException e) {
+                // fall through to the generic label
+            }
+        }
+        setScheduledBadge(when != null ? "Buys " + when : "Not bought yet", R.drawable.badge_grey);
     }
 
     private void setScheduledBadge(String text, int background) {

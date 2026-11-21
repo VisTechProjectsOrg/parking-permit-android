@@ -25,12 +25,12 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Display"
-                android:textSize="16sp"
+                android:textSize="18sp"
                 android:textStyle="bold"
                 android:textColor="#e2e8f0"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp"
-                android:paddingEnd="12dp"
+                android:minHeight="48dp"
+                android:gravity="center_vertical"
+                android:paddingEnd="16dp"
                 android:background="?android:attr/selectableItemBackground" />
 
             <View
