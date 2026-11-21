@@ -33,6 +33,7 @@ public class AlarmReceiver extends BroadcastReceiver {
     private static final int NOTIFICATION_SYNC_FAILURE = 4;
     private static final int NOTIFICATION_COVERAGE = 5;
     public static final int NOTIFICATION_CHECKIN = 7;
+    private static final int NOTIFICATION_BUY_HEADSUP = 8;
 
     // Notify after this many consecutive sync failures
     private static final int FAILURE_THRESHOLD = 3;
@@ -105,6 +106,7 @@ public class AlarmReceiver extends BroadcastReceiver {
                 showCoverageNotification(context, latest, coverageMsg);
                 ActivityLog.log(context, "Alert: " + coverageMsg);
             }
+            maybeShowBuyHeadsUp(context, repo, latest);
         }
 
         // Each paired display (before any has checked in with an ID: the single-display status)
@@ -295,6 +297,48 @@ public class AlarmReceiver extends BroadcastReceiver {
         }
 
         manager.notify(NOTIFICATION_REMINDER, builder.build());
+    }
+
+    // Evening heads-up when the autobuyer's night run is within the next 12 hours (the 9 PM check
+    // before a 2 AM buy), once per buy. "Skip or pause" opens the site's autobuyer settings.
+    private static void maybeShowBuyHeadsUp(Context context, PermitRepository repo, PermitData latest) {
+        if (!repo.isBuyHeadsUpEnabled() || latest.nextBuy == null || latest.nextBuy.isEmpty()
+                || latest.nextBuy.equals(repo.getBuyHeadsUpSentFor())) return;
+        java.util.Date buy;
+        try {
+            buy = new java.text.SimpleDateFormat("MMM dd, yyyy: HH:mm", java.util.Locale.US).parse(latest.nextBuy);
+        } catch (java.text.ParseException e) {
+            return;
+        }
+        long until = buy == null ? -1 : buy.getTime() - System.currentTimeMillis();
+        if (until <= 0 || until > TimeUnit.HOURS.toMillis(12)) return;
+        repo.setBuyHeadsUpSentFor(latest.nextBuy);
+
+        String at = new java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(buy);
+        StringBuilder text = new StringBuilder("The next permit buys at ").append(at);
+        if (latest.resumesOn != null && !latest.resumesOn.isEmpty()) {
+            text.append(", starting ").append(latest.resumesOn.split(",")[0]);
+        }
+        if (latest.price != null && !latest.price.isEmpty()) text.append(" (about ").append(latest.price).append(")");
+        text.append(". Away? Skip or pause it.");
+
+        Intent open = new Intent(context, MainActivity.class)
+            .putExtra(MainActivity.EXTRA_OPEN_SITE_SETTINGS, true)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent pi = PendingIntent.getActivity(context, NOTIFICATION_BUY_HEADSUP, open,
+            PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+        Notification n = new Notification.Builder(context, "permit_updates")
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("Permit auto-buys tonight")
+            .setContentText(text)
+            .setStyle(new Notification.BigTextStyle().bigText(text))
+            .setContentIntent(pi)
+            .addAction(new Notification.Action.Builder(null, "Skip or pause", pi).build())
+            .setAutoCancel(true)
+            .build();
+        ((NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE)).notify(NOTIFICATION_BUY_HEADSUP, n);
+        ActivityLog.log(context, "Heads-up: " + text);
     }
 
     private static void showCoverageNotification(Context context, PermitData permit, String message) {

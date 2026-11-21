@@ -48,10 +48,16 @@ public class PermitData {
     @SerializedName("nextBuy")
     public String nextBuy = "";
 
+    // Set while the autobuyer is paused on purpose (away for a few days): the day the next
+    // permit starts ("Nov 25, 2026"). Until then a gap in coverage is planned, not a problem.
+    @SerializedName("resumesOn")
+    public String resumesOn = "";
+
     public static final int COVERAGE_OK = 0;
     public static final int COVERAGE_ENDS_TODAY = 1;   // nothing bought for tomorrow
     public static final int COVERAGE_EXPIRED = 2;      // car is not covered right now
     public static final int COVERAGE_UNKNOWN = 3;
+    public static final int COVERAGE_PAUSED = 4;       // gap is planned, see resumesOn
 
     public PermitData() {}
 
@@ -144,9 +150,14 @@ public class PermitData {
             String endDay = day.format(endDate);
             String today = day.format(new java.util.Date());
             int cmp = endDay.compareTo(today);
-            if (cmp < 0) return COVERAGE_EXPIRED;
-            if (cmp == 0) return COVERAGE_ENDS_TODAY;
-            return COVERAGE_OK;
+            if (cmp > 0) return COVERAGE_OK;
+            // Out of coverage (or ending today) on purpose: the next permit is set to start later
+            if (resumesOn != null && !resumesOn.isEmpty()) {
+                java.util.Date resume = new java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.US)
+                    .parse(resumesOn.split(":")[0].trim());
+                if (resume != null && day.format(resume).compareTo(today) > 0) return COVERAGE_PAUSED;
+            }
+            return cmp < 0 ? COVERAGE_EXPIRED : COVERAGE_ENDS_TODAY;
         } catch (java.text.ParseException e) {
             return COVERAGE_UNKNOWN;
         }

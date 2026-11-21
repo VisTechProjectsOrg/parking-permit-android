@@ -42,6 +42,7 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
+    public static final String EXTRA_OPEN_SITE_SETTINGS = "open_site_settings";
 
     private ViewPager2 viewPager;
     private TabLayout tabLayout;
@@ -103,6 +104,10 @@ public class MainActivity extends AppCompatActivity {
 
         createNotificationChannels();
         checkBluetoothAndStart();
+
+        if (getIntent().getBooleanExtra(EXTRA_OPEN_SITE_SETTINGS, false)) {
+            openSiteSettingsWhenReady(0);
+        }
     }
 
     private void checkBatteryOptimizationFirstLaunch() {
@@ -543,6 +548,10 @@ public class MainActivity extends AppCompatActivity {
         SwitchCompat switchReminders = dialogView.findViewById(R.id.switchReminders);
         switchReminders.setChecked(repository.isRemindersEnabled());
 
+        SwitchCompat switchBuyHeadsUp = dialogView.findViewById(R.id.switchBuyHeadsUp);
+        switchBuyHeadsUp.setChecked(repository.isBuyHeadsUpEnabled());
+        switchBuyHeadsUp.setOnCheckedChangeListener((b, isChecked) -> repository.setBuyHeadsUpEnabled(isChecked));
+
         // Display check-in alert: Off / 1 / 2 / 3 / 7 days, saved on change like the switch
         final int[] checkinDays = {0, 1, 2, 3, 7};
         String[] checkinLabels = {"Off", "1 day", "2 days", "3 days", "7 days"};
@@ -613,6 +622,25 @@ private void openEmailSettings() {
         if (webViewFragment != null) {
             webViewFragment.loadUrl("https://fucktorontoparking.ca/settings/");
             viewPager.setCurrentItem(1);
+        }
+    }
+
+    // From the "auto-buys tonight" notification: the site's settings page, where the autobuyer
+    // can be paused. On a cold start the web tab isn't created yet, so wait for it briefly.
+    private void openSiteSettingsWhenReady(int attempt) {
+        if (pagerAdapter.getWebViewFragment() == null && attempt < 20) {
+            viewPager.postDelayed(() -> openSiteSettingsWhenReady(attempt + 1), 150);
+            return;
+        }
+        openEmailSettings();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent.getBooleanExtra(EXTRA_OPEN_SITE_SETTINGS, false) && pagerAdapter != null) {
+            openSiteSettingsWhenReady(0);
         }
     }
 

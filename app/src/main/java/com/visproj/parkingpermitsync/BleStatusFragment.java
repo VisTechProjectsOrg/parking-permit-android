@@ -424,6 +424,12 @@ public class BleStatusFragment extends Fragment {
                 java.util.Calendar cal = java.util.Calendar.getInstance();
                 cal.setTime(toDate);
                 cal.add(java.util.Calendar.DAY_OF_MONTH, 1);
+                // Paused until a set date: the next permit starts then, not the day after this one
+                PermitData base = latestOrCurrent(currentPermit);
+                if (base.resumesOn != null && !base.resumesOn.isEmpty()) {
+                    Date resume = outputFormat.parse(base.resumesOn.split(":")[0].trim());
+                    if (resume != null) cal.setTime(resume);
+                }
                 Date nextStart = cal.getTime();
                 cal.add(java.util.Calendar.DAY_OF_MONTH, 6);
                 Date nextEnd = cal.getTime();
@@ -515,6 +521,10 @@ public class BleStatusFragment extends Fragment {
             PermitData base = cardEstimateBase;
             if (base != null && base.nextBuy != null && !base.nextBuy.isEmpty()) {
                 msg.append("Buys automatically ").append(fmtPermitTime(base.nextBuy)).append(".");
+                if (base.resumesOn != null && !base.resumesOn.isEmpty()) {
+                    msg.append("\n\nPaused while you're away. The next permit starts ")
+                       .append(base.resumesOn.split(",")[0]).append(".");
+                }
             } else if (base != null && Boolean.FALSE.equals(base.autobuyer)) {
                 msg.append("The autobuyer is off. Buy it on the site.");
             } else {
@@ -528,12 +538,9 @@ public class BleStatusFragment extends Fragment {
             .show();
     }
 
-    // Not bought yet: orange only when it needs you (autobuyer off), otherwise when it buys
+    // Not bought yet: when it buys if a buy is scheduled (also while paused until a set date),
+    // orange only when nothing will buy it (autobuyer off with no date)
     private void setEstimateBadge(PermitData base) {
-        if (base != null && Boolean.FALSE.equals(base.autobuyer)) {
-            setScheduledBadge("Not bought", R.drawable.badge_orange);
-            return;
-        }
         String when = null;
         if (base != null && base.nextBuy != null && !base.nextBuy.isEmpty()) {
             try {
@@ -546,6 +553,10 @@ public class BleStatusFragment extends Fragment {
             } catch (ParseException e) {
                 // fall through to the generic label
             }
+        }
+        if (when == null && base != null && Boolean.FALSE.equals(base.autobuyer)) {
+            setScheduledBadge("Not bought", R.drawable.badge_orange);
+            return;
         }
         setScheduledBadge(when != null ? "Auto-buy " + when : "Not bought yet", R.drawable.badge_grey);
     }

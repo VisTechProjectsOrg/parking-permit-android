@@ -16,6 +16,8 @@ public class PermitRepository {
     private static final String KEY_DISPLAY_FLIPPED = "display_flipped";
     private static final String KEY_NEW_PERMIT_DETECTED = "new_permit_detected_time";
     private static final String KEY_REMINDERS_ENABLED = "reminders_enabled";
+    private static final String KEY_BUY_HEADSUP_ENABLED = "buy_headsup_enabled";
+    private static final String KEY_BUY_HEADSUP_SENT_FOR = "buy_headsup_sent_for";
     private static final String KEY_CONSECUTIVE_SYNC_FAILURES = "consecutive_sync_failures";
     private static final String KEY_DISPLAY_CACHED_PERMIT = "display_cached_permit";
     private static final String KEY_CHECKIN_ALERT_DAYS = "checkin_alert_days";
@@ -506,6 +508,24 @@ public class PermitRepository {
 
     public void setCheckinAlertDays(int days) {
         prefs.edit().putInt(KEY_CHECKIN_ALERT_DAYS, days).apply();
+    }
+
+    // Evening heads-up before the autobuyer's night run ("auto-buys tonight at 2 AM")
+    public boolean isBuyHeadsUpEnabled() {
+        return prefs.getBoolean(KEY_BUY_HEADSUP_ENABLED, true);
+    }
+
+    public void setBuyHeadsUpEnabled(boolean enabled) {
+        prefs.edit().putBoolean(KEY_BUY_HEADSUP_ENABLED, enabled).apply();
+    }
+
+    // The nextBuy value already warned about, so each buy gets one heads-up
+    public String getBuyHeadsUpSentFor() {
+        return prefs.getString(KEY_BUY_HEADSUP_SENT_FOR, "");
+    }
+
+    public void setBuyHeadsUpSentFor(String nextBuy) {
+        prefs.edit().putString(KEY_BUY_HEADSUP_SENT_FOR, nextBuy).apply();
     }
 
     public boolean isRemindersEnabled() {
