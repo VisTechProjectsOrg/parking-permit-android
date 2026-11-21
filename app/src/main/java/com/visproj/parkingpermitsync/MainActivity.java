@@ -216,8 +216,8 @@ public class MainActivity extends AppCompatActivity {
             // Fragment will handle the sync
         } else {
             // Fragment not ready, sync directly
-            GitHubSyncTask syncTask = new GitHubSyncTask(this);
-            syncTask.sync(new GitHubSyncTask.SyncCallback() {
+            PermitSyncTask syncTask = new PermitSyncTask(this);
+            syncTask.sync(new PermitSyncTask.SyncCallback() {
                 @Override
                 public void onSuccess(PermitData permit, boolean isNew) {
                     Log.d(TAG, "Initial sync success");
@@ -292,36 +292,11 @@ public class MainActivity extends AppCompatActivity {
             okButton.setOnClickListener(v -> {
                 boolean newFlip = switchFlip.isChecked();
                 if (newFlip != currentFlip) {
+                    // The display picks this up at its next check-in (it sleeps in between)
                     repository.setDisplayFlipped(newFlip);
-                    // Disable button and show syncing state
-                    okButton.setEnabled(false);
-                    okButton.setAlpha(0.5f);
-                    okButton.setText("Syncing...");
-                    dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
-                    dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setAlpha(0.5f);
-
-                    BleStatusFragment fragment = pagerAdapter.getBleStatusFragment();
-                    if (fragment != null) {
-                        fragment.triggerDisplaySync(new BleStatusFragment.DisplaySyncCallback() {
-                            @Override
-                            public void onSuccess() {
-                                Toast.makeText(MainActivity.this, "Display settings updated", Toast.LENGTH_SHORT).show();
-                                dialog.dismiss();
-                            }
-
-                            @Override
-                            public void onError(String error) {
-                                Toast.makeText(MainActivity.this, "Sync failed - setting will apply on next sync", Toast.LENGTH_LONG).show();
-                                dialog.dismiss();
-                            }
-                        });
-                    } else {
-                        Toast.makeText(this, "Setting saved - will apply on next sync", Toast.LENGTH_SHORT).show();
-                        dialog.dismiss();
-                    }
-                } else {
-                    dialog.dismiss();
+                    Toast.makeText(this, "Saved. Press the display's button to apply it now.", Toast.LENGTH_LONG).show();
                 }
+                dialog.dismiss();
             });
         });
 

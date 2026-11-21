@@ -240,21 +240,9 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Display needs updating"
+                android:text="Display doesn't have the new permit yet. Press its button near your phone."
                 android:textSize="14sp"
                 android:textColor="#FFFFFF" />
-
-            <Button
-                android:id="@+id/btnUpdateDisplay"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:text="Update"
-                android:textSize="12sp"
-                android:textColor="#ff9800"
-                android:backgroundTint="#FFFFFF"
-                android:minWidth="0dp"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp" />
 
         </LinearLayout>
 
@@ -284,7 +272,7 @@
             android:id="@+id/btnSync"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Sync"
+            android:text="Check for New Permit"
             android:textColor="#FFFFFF"
             android:backgroundTint="#2196f3" />
 

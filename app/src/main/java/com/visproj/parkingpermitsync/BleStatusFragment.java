@@ -23,7 +23,6 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.widget.PopupMenu;
 import androidx.fragment.app.Fragment;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
@@ -35,7 +34,6 @@ import java.util.Locale;
 public class BleStatusFragment extends Fragment {
 
     private static final int COLOR_BLUE = 0xFF2196F3;
-    private static final int COLOR_WHITE = 0xFFFFFFFF;
 
     private TextView tvStatus;
     private TextView tvPermitNumber;
@@ -58,10 +56,8 @@ public class BleStatusFragment extends Fragment {
     private TextView tvCoverageWarning;
     private BatteryView batteryView;
     private TextView tvDisplayBattery;
-    private Button btnUpdateDisplay;
 
     private PermitRepository repository;
-    private DisplaySyncHelper displaySyncHelper;
     private Handler handler;
     private Runnable updateRunnable;
     private boolean pendingBleRunning = false;
@@ -78,14 +74,9 @@ public class BleStatusFragment extends Fragment {
                     break;
                 case BleGattService.ACTION_DEVICE_CONNECTED:
                     showConnectionStatus("Display connected", "#ff9800");
-                    // Also update warning banner button
-                    setButtonEnabled(btnUpdateDisplay, false, COLOR_WHITE);
-                    btnUpdateDisplay.setText("Connecting...");
                     break;
                 case BleGattService.ACTION_DEVICE_DISCONNECTED:
                     hideConnectionStatus();
-                    setButtonEnabled(btnUpdateDisplay, true, COLOR_WHITE);
-                    btnUpdateDisplay.setText("Update");
                     updateUI();
                     break;
                 case BleGattService.ACTION_DISPLAY_STATUS:
@@ -93,12 +84,9 @@ public class BleStatusFragment extends Fragment {
                     break;
                 case BleGattService.ACTION_PERMIT_READ:
                     showConnectionStatus("Display updating...", "#4caf50");
-                    btnUpdateDisplay.setText("Updating...");
                     boolean isNewPermit = intent.getBooleanExtra("isNewPermit", false);
                     handler.postDelayed(() -> {
                         hideConnectionStatus();
-                        setButtonEnabled(btnUpdateDisplay, true, COLOR_WHITE);
-                        btnUpdateDisplay.setText("Update");
                         // The service already recorded what the display took (and what it
                         // reported back); just refresh
                         updateUI();
@@ -153,13 +141,9 @@ public class BleStatusFragment extends Fragment {
         batteryView = view.findViewById(R.id.batteryView);
         tvDisplayBattery = view.findViewById(R.id.tvDisplayBattery);
         view.findViewById(R.id.displayBatteryGroup).setOnClickListener(v -> showDisplayDetails());
-        btnUpdateDisplay = view.findViewById(R.id.btnUpdateDisplay);
 
-        displaySyncHelper = new DisplaySyncHelper(requireContext());
-
-        btnSync.setOnClickListener(v -> showSyncMenu(v));
+        btnSync.setOnClickListener(v -> syncNow());
         btnBattery.setOnClickListener(v -> openBatterySettings());
-        btnUpdateDisplay.setOnClickListener(v -> updateDisplay(false));
 
         updateRunnable = new Runnable() {
             @Override
@@ -219,8 +203,8 @@ public class BleStatusFragment extends Fragment {
         tvStatus.setText("Checking for new permit...");
         setStatusIndicatorColor("#ff9800");
 
-        GitHubSyncTask syncTask = new GitHubSyncTask(requireContext());
-        syncTask.sync(new GitHubSyncTask.SyncCallback() {
+        PermitSyncTask syncTask = new PermitSyncTask(requireContext());
+        syncTask.sync(new PermitSyncTask.SyncCallback() {
             @Override
             public void onSuccess(PermitData permit, boolean isNew) {
                 if (!isAdded()) return;
@@ -229,7 +213,7 @@ public class BleStatusFragment extends Fragment {
                 setStatusIndicatorColor("#4caf50");
                 updateUI();
 
-                String msg = isNew ? "New permit synced!" : "Permit up to date";
+                String msg = isNew ? "New permit found" : "Permit is up to date";
                 Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show();
             }
 
@@ -237,86 +221,8 @@ public class BleStatusFragment extends Fragment {
             public void onError(String error) {
                 if (!isAdded()) return;
                 setButtonEnabled(btnSync, true, COLOR_BLUE);
-                tvStatus.setText("Sync failed");
+                tvStatus.setText("Couldn't reach the site");
                 setStatusIndicatorColor("#f44336");
-            }
-        });
-    }
-
-    private void showSyncMenu(View anchor) {
-        PopupMenu popup = new PopupMenu(requireContext(), anchor);
-        popup.getMenu().add(0, 1, 0, "Check for New Permit");
-        popup.getMenu().add(0, 2, 1, "Update Display");
-        popup.getMenu().add(0, 3, 2, "Force Update Display");
-
-        popup.setOnMenuItemClickListener(item -> {
-            switch (item.getItemId()) {
-                case 1:
-                    syncNow();
-                    return true;
-                case 2:
-                    updateDisplay(false);
-                    return true;
-                case 3:
-                    updateDisplay(true);
-                    return true;
-            }
-            return false;
-        });
-
-        popup.show();
-    }
-
-    private void updateDisplay(boolean force) {
-        setButtonEnabled(btnSync, false, COLOR_BLUE);
-        setButtonEnabled(btnUpdateDisplay, false, COLOR_WHITE);
-        btnUpdateDisplay.setText("Updating...");
-        tvSyncStatus.setVisibility(View.VISIBLE);
-        tvSyncStatus.setText(force ? "Force updating display..." : "Scanning for display...");
-
-        displaySyncHelper.syncDisplay(force, new DisplaySyncHelper.SyncCallback() {
-            @Override
-            public void onStatus(String status) {
-                if (!isAdded()) return;
-                tvSyncStatus.setText(status);
-            }
-
-            @Override
-            public void onSuccess() {
-                if (!isAdded()) return;
-                setButtonEnabled(btnSync, true, COLOR_BLUE);
-                setButtonEnabled(btnUpdateDisplay, true, COLOR_WHITE);
-                btnUpdateDisplay.setText("Update");
-                tvSyncStatus.setVisibility(View.GONE);
-
-                // Track which permit is now on the display (save full permit data)
-                PermitData permit = repository.getPermit();
-                if (permit != null && permit.permitNumber != null) {
-                    repository.setDisplayPermit(permit);
-                }
-                updateUI();
-                String msg = permit != null && permit.permitNumber != null
-                    ? "New permit synced to display: " + permit.permitNumber
-                    : "Display updated!";
-                Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show();
-            }
-
-            @Override
-            public void onError(String error) {
-                if (!isAdded()) return;
-                setButtonEnabled(btnSync, true, COLOR_BLUE);
-                setButtonEnabled(btnUpdateDisplay, true, COLOR_WHITE);
-                btnUpdateDisplay.setText("Update");
-                tvSyncStatus.setText(error);
-                tvSyncStatus.setTextColor(android.graphics.Color.parseColor("#f44336"));
-
-                // Hide after delay
-                handler.postDelayed(() -> {
-                    if (isAdded()) {
-                        tvSyncStatus.setVisibility(View.GONE);
-                        tvSyncStatus.setTextColor(android.graphics.Color.parseColor("#8892a6"));
-                    }
-                }, 3000);
             }
         });
     }
@@ -345,91 +251,30 @@ public class BleStatusFragment extends Fragment {
         }
     }
 
-    public interface DisplaySyncCallback {
-        void onSuccess();
-        void onError(String error);
-    }
-
-    private DisplaySyncCallback pendingSyncCallback;
-
-    public void triggerDisplaySync(DisplaySyncCallback callback) {
-        pendingSyncCallback = callback;
-        updateDisplayWithCallback(false);
-    }
-
-    private void updateDisplayWithCallback(boolean force) {
-        setButtonEnabled(btnSync, false, COLOR_BLUE);
-        setButtonEnabled(btnUpdateDisplay, false, COLOR_WHITE);
-        btnUpdateDisplay.setText("Updating...");
-        tvSyncStatus.setVisibility(View.VISIBLE);
-        tvSyncStatus.setText(force ? "Force updating display..." : "Scanning for display...");
-
-        displaySyncHelper.syncDisplay(force, new DisplaySyncHelper.SyncCallback() {
-            @Override
-            public void onStatus(String status) {
-                if (!isAdded()) return;
-                tvSyncStatus.setText(status);
-            }
-
-            @Override
-            public void onSuccess() {
-                if (!isAdded()) return;
-                setButtonEnabled(btnSync, true, COLOR_BLUE);
-                setButtonEnabled(btnUpdateDisplay, true, COLOR_WHITE);
-                btnUpdateDisplay.setText("Update");
-                tvSyncStatus.setVisibility(View.GONE);
-
-                PermitData permit = repository.getPermit();
-                if (permit != null && permit.permitNumber != null) {
-                    repository.setDisplayPermit(permit);
-                }
-                updateUI();
-
-                if (pendingSyncCallback != null) {
-                    pendingSyncCallback.onSuccess();
-                    pendingSyncCallback = null;
-                }
-            }
-
-            @Override
-            public void onError(String error) {
-                if (!isAdded()) return;
-                setButtonEnabled(btnSync, true, COLOR_BLUE);
-                setButtonEnabled(btnUpdateDisplay, true, COLOR_WHITE);
-                btnUpdateDisplay.setText("Update");
-                tvSyncStatus.setText(error);
-                tvSyncStatus.setTextColor(android.graphics.Color.parseColor("#f44336"));
-
-                handler.postDelayed(() -> {
-                    if (isAdded()) {
-                        tvSyncStatus.setVisibility(View.GONE);
-                        tvSyncStatus.setTextColor(android.graphics.Color.parseColor("#8892a6"));
-                    }
-                }, 3000);
-
-                if (pendingSyncCallback != null) {
-                    pendingSyncCallback.onError(error);
-                    pendingSyncCallback = null;
-                }
-            }
-        });
-    }
-
     private void updateUI() {
         if (!isAdded() || repository == null) return;
 
-        PermitData githubPermit = repository.getPermit();
+        PermitData latestPermit = repository.getPermit();
         PermitData displayPermit = repository.getDisplayPermit();
         boolean isOutOfSync = repository.isDisplayOutOfSync();
+        long now = System.currentTimeMillis();
 
-        // If display is out of sync and we have a display permit, show the OLD one as current
-        // (because that's what's actually on the display right now)
-        // Otherwise show the github permit
-        PermitData currentPermit;
+        // Current = what's on the display. If it hasn't taken the latest permit yet, that's the
+        // old one. Otherwise pick by date like the display does: after the 4 PM flip on the last
+        // day the feed lists next week's permit first and the expiring one as "next".
+        PermitData currentPermit = latestPermit;
+        PermitData upcomingPermit = latestPermit;
         if (isOutOfSync && displayPermit != null && displayPermit.isValid()) {
             currentPermit = displayPermit;
-        } else {
-            currentPermit = githubPermit;
+        } else if (latestPermit != null && latestPermit.next != null && latestPermit.next.isValid()) {
+            PermitData other = latestPermit.next;
+            if (other.isValidAt(now) && !latestPermit.isValidAt(now)) {
+                // Prefer the stored display permit for it: it has the price and vehicle name
+                currentPermit = displayPermit != null && other.permitNumber.equals(displayPermit.permitNumber)
+                    ? displayPermit : other;
+            } else if (other.startsAfter(now)) {
+                upcomingPermit = other;
+            }
         }
 
         if (currentPermit != null && currentPermit.isValid()) {
@@ -472,8 +317,8 @@ public class BleStatusFragment extends Fragment {
             // Set badge based on current status
             updatePermitBadge(currentPermit);
 
-            // Show scheduled permit if GitHub has a newer one
-            updateScheduledPermit(currentPermit, githubPermit, displayPermit != null);
+            // Show the next permit if one is already bought
+            updateScheduledPermit(currentPermit, upcomingPermit, displayPermit != null);
         } else {
             tvPermitNumber.setText("No permit");
             tvPermitPrice.setText("");
@@ -485,8 +330,8 @@ public class BleStatusFragment extends Fragment {
         }
 
         // Coverage comes from the latest fetched permit, not what the display shows
-        String coverageMsg = githubPermit != null && githubPermit.isValid()
-            ? PermitData.coverageMessage(githubPermit.getCoverage()) : null;
+        String coverageMsg = latestPermit != null && latestPermit.isValid()
+            ? PermitData.coverageMessage(latestPermit.getCoverage()) : null;
         tvCoverageWarning.setText(coverageMsg);
         tvCoverageWarning.setVisibility(coverageMsg != null ? View.VISIBLE : View.GONE);
 
@@ -500,19 +345,19 @@ public class BleStatusFragment extends Fragment {
         return String.format("%s (%s)", name, p.plateNumber);
     }
 
-    private void updateScheduledPermit(PermitData currentPermit, PermitData githubPermit, boolean hasDisplayPermit) {
-        // Show scheduled card if GitHub has a different (newer) permit than what's on display
-        if (githubPermit != null && githubPermit.isValid() &&
-            !githubPermit.permitNumber.equals(currentPermit.permitNumber)) {
+    private void updateScheduledPermit(PermitData currentPermit, PermitData nextPermit, boolean hasDisplayPermit) {
+        // Show the next permit if it's a different one from what's on the display
+        if (nextPermit != null && nextPermit.isValid() &&
+            !nextPermit.permitNumber.equals(currentPermit.permitNumber)) {
 
-            // GitHub has a newer permit - show it as scheduled
-            tvScheduledNumber.setText(githubPermit.permitNumber);
-            String dateRange = formatDateRange(githubPermit.validFrom, githubPermit.validTo);
+            // Next permit already bought - show it as scheduled
+            tvScheduledNumber.setText(nextPermit.permitNumber);
+            String dateRange = formatDateRange(nextPermit.validFrom, nextPermit.validTo);
             tvScheduledDates.setText(dateRange);
-            tvScheduledVehicle.setText(vehicleLabel(githubPermit));
+            tvScheduledVehicle.setText(vehicleLabel(nextPermit));
 
-            if (githubPermit.price != null && !githubPermit.price.isEmpty()) {
-                tvScheduledPrice.setText(githubPermit.price);
+            if (nextPermit.price != null && !nextPermit.price.isEmpty()) {
+                tvScheduledPrice.setText(nextPermit.price);
                 tvScheduledPrice.setVisibility(View.VISIBLE);
             } else {
                 tvScheduledPrice.setVisibility(View.GONE);
@@ -523,13 +368,13 @@ public class BleStatusFragment extends Fragment {
         }
 
         // If no display permit yet, don't show estimated future permit
-        // (we're already showing the GitHub permit as current)
+        // (we're already showing the latest permit as current)
         if (!hasDisplayPermit) {
             scheduledPermitCard.setVisibility(View.GONE);
             return;
         }
 
-        // No newer permit from GitHub - check if current is expiring soon and estimate next
+        // No next permit bought yet - if current is expiring soon, estimate the next one
         try {
             SimpleDateFormat inputFormat = new SimpleDateFormat("MMM dd, yyyy: HH:mm", Locale.US);
             SimpleDateFormat outputFormat = new SimpleDateFormat("MMM dd, yyyy", Locale.US);

@@ -15,8 +15,8 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
-public class GitHubSyncTask {
-    private static final String TAG = "GitHubSyncTask";
+public class PermitSyncTask {
+    private static final String TAG = "PermitSyncTask";
 
     public interface SyncCallback {
         void onSuccess(PermitData permit, boolean isNew);
@@ -30,7 +30,7 @@ public class GitHubSyncTask {
     private final ExecutorService executor;
     private final Handler mainHandler;
 
-    public GitHubSyncTask(Context context) {
+    public PermitSyncTask(Context context) {
         this.context = context;
         this.repository = new PermitRepository(context);
         this.client = new OkHttpClient();
@@ -42,7 +42,7 @@ public class GitHubSyncTask {
     public void sync(SyncCallback callback) {
         executor.execute(() -> {
             try {
-                String url = repository.getGitHubUrl();
+                String url = PermitRepository.PERMIT_URL;
                 Log.d(TAG, "Syncing from: " + url);
 
                 Request request = new Request.Builder()

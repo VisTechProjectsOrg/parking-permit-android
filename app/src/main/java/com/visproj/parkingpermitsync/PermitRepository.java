@@ -13,7 +13,6 @@ public class PermitRepository {
     private static final String KEY_DISPLAY_PERMIT_NUMBER = "display_permit_number";
     private static final String KEY_DISPLAY_PERMIT = "display_permit";
     private static final String KEY_PREVIOUS_PERMIT = "previous_permit";
-    private static final String KEY_GITHUB_URL = "github_url";
     private static final String KEY_DISPLAY_FLIPPED = "display_flipped";
     private static final String KEY_NEW_PERMIT_DETECTED = "new_permit_detected_time";
     private static final String KEY_REMINDERS_ENABLED = "reminders_enabled";
@@ -25,8 +24,7 @@ public class PermitRepository {
     private static final String KEY_BATTERY_BASE_TIME = "display_battery_base_time";
     private static final String KEY_BATTERY_LOW_NOTIFIED = "display_battery_low_notified";
 
-    private static final String DEFAULT_GITHUB_URL =
-        "https://fucktorontoparking.ca/api/permit";
+    public static final String PERMIT_URL = "https://fucktorontoparking.ca/api/permit";
 
     private final SharedPreferences prefs;
     private final Gson gson;
@@ -34,20 +32,6 @@ public class PermitRepository {
     public PermitRepository(Context context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         gson = new Gson();
-
-        // One-time seed: if no previous permit exists, seed with T6199100 for price comparison
-        if (getPreviousPermit() == null) {
-            PermitData seed = new PermitData();
-            seed.permitNumber = "T6199100";
-            seed.plateNumber = "DBXH751";
-            seed.vehicleName = "Hooptie";
-            seed.validFrom = "Dec 30, 2025: 00:00";
-            seed.validTo = "Jan 06, 2026: 23:59";
-            seed.barcodeValue = "6199100";
-            seed.barcodeLabel = "00435";
-            seed.price = "$48.38";
-            setPreviousPermit(seed);
-        }
     }
 
     public PermitData getPermit() {
@@ -213,17 +197,6 @@ public class PermitRepository {
         prefs.edit()
             .putString(KEY_PREVIOUS_PERMIT, gson.toJson(permit))
             .apply();
-    }
-
-    public String getGitHubUrl() {
-        String url = prefs.getString(KEY_GITHUB_URL, DEFAULT_GITHUB_URL);
-        // The permit feed moved from the GitHub permit branch to the site
-        if (url.contains("githubusercontent.com")) return DEFAULT_GITHUB_URL;
-        return url;
-    }
-
-    public void setGitHubUrl(String url) {
-        prefs.edit().putString(KEY_GITHUB_URL, url).apply();
     }
 
     public boolean isDisplayFlipped() {

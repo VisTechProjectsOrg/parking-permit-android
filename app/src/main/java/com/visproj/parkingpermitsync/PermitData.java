@@ -99,6 +99,25 @@ public class PermitData {
         return o;
     }
 
+    private static long parseTime(String s) {
+        try {
+            java.util.Date d = new java.text.SimpleDateFormat("MMM dd, yyyy: HH:mm", java.util.Locale.US).parse(s);
+            return d != null ? d.getTime() : 0;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    // validTo is the last minute of coverage, so it counts through hh:59
+    public boolean isValidAt(long now) {
+        long from = parseTime(validFrom), to = parseTime(validTo);
+        return from > 0 && to > 0 && from <= now && now < to + 60_000;
+    }
+
+    public boolean startsAfter(long now) {
+        return parseTime(validFrom) > now;
+    }
+
     // Warning text for a coverage state, or null when there is nothing to warn about
     public static String coverageMessage(int coverage) {
         if (coverage == COVERAGE_ENDS_TODAY) return "No permit bought for tomorrow. Buy one before midnight.";

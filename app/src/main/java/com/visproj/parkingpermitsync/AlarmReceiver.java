@@ -61,8 +61,8 @@ public class AlarmReceiver extends BroadcastReceiver {
         // Keep the process alive until the network fetch finishes
         final PendingResult pending = goAsync();
         PermitRepository repo = new PermitRepository(context);
-        GitHubSyncTask syncTask = new GitHubSyncTask(context);
-        syncTask.sync(new GitHubSyncTask.SyncCallback() {
+        PermitSyncTask syncTask = new PermitSyncTask(context);
+        syncTask.sync(new PermitSyncTask.SyncCallback() {
             @Override
             public void onSuccess(PermitData permit, boolean isNew) {
                 Log.d(TAG, "Sync successful: " + permit.permitNumber + " (new=" + isNew + ")");
@@ -186,11 +186,11 @@ public class AlarmReceiver extends BroadcastReceiver {
 
         Notification notification = new Notification.Builder(context, "permit_updates")
             .setSmallIcon(R.drawable.ic_bluetooth)
-            .setContentTitle("New Permit Available")
-            .setContentText("Permit " + permit.permitNumber + " ready to sync")
+            .setContentTitle("New permit bought")
+            .setContentText("Permit " + permit.permitNumber)
             .setStyle(new Notification.BigTextStyle().bigText(
                 "Permit " + permit.permitNumber + " is ready.\n" +
-                "Power on the display, keep your phone nearby, and open the app to sync."))
+                "The display picks it up on its next check-in when your phone is nearby."))
             .setAutoCancel(true)
             .build();
 
@@ -208,15 +208,15 @@ public class AlarmReceiver extends BroadcastReceiver {
         if (daysSinceNew <= 0) {
             shortText = "Permit " + permit.permitNumber + " hasn't been synced";
             longText = "Permit " + permit.permitNumber + " hasn't been synced to the display yet.\n" +
-                "Power on the display, keep your phone nearby, and open the app to sync.";
+                "Press the display's button with your phone nearby.";
         } else if (daysSinceNew == 1) {
             shortText = "Display is 1 day behind";
             longText = "Permit " + permit.permitNumber + " - display is 1 day behind.\n" +
-                "Power on the display, keep your phone nearby, and open the app to sync.";
+                "Press the display's button with your phone nearby.";
         } else {
             shortText = "Display is " + daysSinceNew + " days behind";
             longText = "Permit " + permit.permitNumber + " - display is " + daysSinceNew + " days behind!\n" +
-                "Power on the display, keep your phone nearby, and open the app to sync.";
+                "Press the display's button with your phone nearby.";
         }
 
         Notification.Builder builder = new Notification.Builder(context, "permit_updates")
