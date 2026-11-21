@@ -25,7 +25,8 @@ public class PermitRepository {
     private static final String KEY_BATTERY_TIME = "display_battery_time";
     private static final String KEY_BATTERY_BASE_MV = "display_battery_base_mv";
     private static final String KEY_BATTERY_BASE_TIME = "display_battery_base_time";
-    private static final String KEY_BATTERY_LOW_NOTIFIED = "display_battery_low_notified";
+    private static final String KEY_BATTERY_LOW_NOTIFIED = "display_battery_low_notified";  // pre-levels
+    private static final String KEY_BATTERY_ALERT_LEVEL = "display_battery_alert_level";
 
     private static final String KEY_DISPLAYS = "displays";
     private static final String KEY_SELECTED_DISPLAY = "selected_display";
@@ -146,7 +147,7 @@ public class PermitRepository {
         for (String key : new String[]{KEY_LAST_DISPLAY_SYNC, KEY_DISPLAY_PERMIT_NUMBER,
                 KEY_DISPLAY_PERMIT, KEY_DISPLAY_FLIPPED, KEY_DISPLAY_CACHED_PERMIT, KEY_SHOWN_SINCE,
                 KEY_SHOWN_REPORTED, KEY_BATTERY_MV, KEY_BATTERY_TIME, KEY_BATTERY_BASE_MV,
-                KEY_BATTERY_BASE_TIME, KEY_BATTERY_LOW_NOTIFIED}) {
+                KEY_BATTERY_BASE_TIME, KEY_BATTERY_LOW_NOTIFIED, KEY_BATTERY_ALERT_LEVEL}) {
             e.remove(gone.keyPrefix + key);
         }
         e.apply();
@@ -327,7 +328,7 @@ public class PermitRepository {
             // A clear rise means it was charged: restart the drain estimate from here
             if (lastMv == 0 || batteryMv > lastMv + 100) {
                 e.putInt(dk(KEY_BATTERY_BASE_MV), batteryMv).putLong(dk(KEY_BATTERY_BASE_TIME), now);
-                e.putBoolean(dk(KEY_BATTERY_LOW_NOTIFIED), false);
+                e.remove(dk(KEY_BATTERY_LOW_NOTIFIED)).remove(dk(KEY_BATTERY_ALERT_LEVEL));
             }
             e.putInt(dk(KEY_BATTERY_MV), batteryMv).putLong(dk(KEY_BATTERY_TIME), now);
         }
@@ -380,12 +381,28 @@ public class PermitRepository {
         return (int) (batteryPercent(mv) / (usedPct / days));
     }
 
-    public boolean isBatteryLowNotified() {
-        return prefs.getBoolean(dk(KEY_BATTERY_LOW_NOTIFIED), false);
+    // Highest low-battery alert sent since the last charge: 0 none, 1-2 normal, 3 urgent.
+    // Older installs only stored "sent once", which counts as level 1.
+    public int getBatteryAlertLevel() {
+        return prefs.getInt(dk(KEY_BATTERY_ALERT_LEVEL),
+            prefs.getBoolean(dk(KEY_BATTERY_LOW_NOTIFIED), false) ? 1 : 0);
     }
 
-    public void setBatteryLowNotified() {
-        prefs.edit().putBoolean(dk(KEY_BATTERY_LOW_NOTIFIED), true).apply();
+    public void setBatteryAlertLevel(int level) {
+        prefs.edit().putInt(dk(KEY_BATTERY_ALERT_LEVEL), level).apply();
+    }
+
+    // Which low-battery alert this reading calls for (0 = none). By days left once there's an
+    // estimate, since 20% can still last weeks; by percent before that. 5% or less is always urgent.
+    public static int batteryAlertLevel(int pct, int daysLeft) {
+        if (pct <= 5) return 3;
+        if (daysLeft >= 0) {
+            if (daysLeft <= 1) return 3;
+            if (daysLeft <= 3) return 2;
+            return daysLeft <= 7 ? 1 : 0;
+        }
+        if (pct <= 10) return 2;
+        return pct <= 20 ? 1 : 0;
     }
 
     public PermitData getPreviousPermit() {

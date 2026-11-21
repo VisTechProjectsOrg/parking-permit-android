@@ -71,7 +71,6 @@ public class BleGattService extends Service {
 
     // Battery display writes "shownPermit,cachedPermit,batteryMv,fwVersion" after each sync
     public static final UUID STATUS_CHAR_UUID = UUID.fromString("0000ff03-0000-1000-8000-00805f9b34fb");
-    private static final int BATTERY_LOW_PERCENT = 20;
     private static final int BATTERY_NOTIFICATION_ID = 6;
 
     // Silent channel for the foreground service. Android raises a service's channel to at least
@@ -618,21 +617,40 @@ public class BleGattService extends Service {
         // It's checking in again: clear any "hasn't checked in" alert
         getSystemService(NotificationManager.class).cancel(AlarmReceiver.NOTIFICATION_CHECKIN);
 
-        if (mv > 0 && PermitRepository.batteryPercent(mv) <= BATTERY_LOW_PERCENT
-                && !displayRepo.isBatteryLowNotified()) {
-            displayRepo.setBatteryLowNotified();
-            int pct = PermitRepository.batteryPercent(mv);
-            boolean several = repository.getActiveDisplays().size() > 1;
-            String text = (several ? display.name : "Display") + " battery is at " + pct + "%. Charge it soon.";
-            Notification n = new NotificationCompat.Builder(this, "permit_updates")
-                .setContentTitle(several ? "Charge " + display.name : "Charge the display")
-                .setContentText(text)
-                .setSmallIcon(R.drawable.ic_notification)
-                .setAutoCancel(true)
-                .build();
-            // One per display, so two low units don't replace each other's notice
-            getSystemService(NotificationManager.class).notify(BATTERY_NOTIFICATION_ID + display.id.hashCode(), n);
+        if (mv > 0) checkBatteryAlert(display, displayRepo, mv);
+    }
+
+    // Up to three low-battery alerts per discharge (see batteryAlertLevel), each replacing the
+    // last; the final one goes on the urgent channel. Charging resets them.
+    private void checkBatteryAlert(PermitRepository.DisplayInfo display, PermitRepository displayRepo, int mv) {
+        int pct = PermitRepository.batteryPercent(mv);
+        int days = displayRepo.estimateBatteryDaysLeft();
+        int level = PermitRepository.batteryAlertLevel(pct, days);
+        if (level <= displayRepo.getBatteryAlertLevel()) return;
+        displayRepo.setBatteryAlertLevel(level);
+
+        boolean several = repository.getActiveDisplays().size() > 1;
+        String who = several ? display.name : "Display";
+        String left = days < 0 ? "" : days == 0 ? ", less than a day left"
+            : ", about " + days + (days == 1 ? " day left" : " days left");
+        boolean urgent = level >= 3;
+        String text = urgent
+            ? who + " battery is almost empty (" + pct + "%" + left + "). Charge it today."
+            : who + " battery is at " + pct + "%" + left + ". Charge it soon.";
+
+        if (urgent) {
+            getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel(
+                "permit_urgent", "Urgent Permit Reminders", NotificationManager.IMPORTANCE_HIGH));
         }
+        Notification n = new NotificationCompat.Builder(this, urgent ? "permit_urgent" : "permit_updates")
+            .setContentTitle(several ? "Charge " + display.name : "Charge the display")
+            .setContentText(text)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+            .setSmallIcon(R.drawable.ic_notification)
+            .setAutoCancel(true)
+            .build();
+        // One per display, so two low units don't replace each other's notice
+        getSystemService(NotificationManager.class).notify(BATTERY_NOTIFICATION_ID + display.id.hashCode(), n);
     }
 
     private double parsePrice(String price) throws NumberFormatException {
