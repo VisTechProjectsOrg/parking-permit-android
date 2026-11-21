@@ -649,6 +649,12 @@ public class BleGattService extends Service {
             if (was != (charging == 1)) {
                 ActivityLog.log(this, display.name + (charging == 1 ? " is charging" : " stopped charging"));
             }
+            // Charge over: count it here (the 100 mV jump check can't see 5-minute steps)
+            if (was && charging == 0 && chargedFrom == 0) {
+                displayRepo.recordChargeEnded(mv);
+                ActivityLog.log(this, String.format(java.util.Locale.US, "%s was charged, now %.2f V",
+                    display.name, mv / 1000.0));
+            }
         }
 
         StringBuilder line = new StringBuilder(display.name).append(" checked in: ");
