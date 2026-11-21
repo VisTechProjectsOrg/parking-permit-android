@@ -26,7 +26,7 @@ public class PermitRepository {
     private static final String KEY_BATTERY_LOW_NOTIFIED = "display_battery_low_notified";
 
     private static final String DEFAULT_GITHUB_URL =
-        "https://fucktorontoparking.ca/api/permit.php";
+        "https://fucktorontoparking.ca/api/permit";
 
     private final SharedPreferences prefs;
     private final Gson gson;
