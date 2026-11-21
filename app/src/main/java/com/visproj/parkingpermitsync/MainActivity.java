@@ -15,10 +15,13 @@ import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.widget.SwitchCompat;
@@ -286,6 +289,9 @@ public class MainActivity extends AppCompatActivity {
         if (id == R.id.action_display_settings) {
             openDisplaySettings();
             return true;
+        } else if (id == R.id.action_account) {
+            openAccountSettings();
+            return true;
         } else if (id == R.id.action_notifications) {
             openNotificationSettings();
             return true;
@@ -296,35 +302,205 @@ public class MainActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
+    // One row per paired display: tap the name to rename, flip switch, Forget
     private void openDisplaySettings() {
         PermitRepository repository = new PermitRepository(this);
-        boolean currentFlip = repository.isDisplayFlipped();
+        List<PermitRepository.DisplayInfo> displays = repository.getActiveDisplays();
+        int pad = dp(20);
 
-        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_display_settings, null);
-        SwitchCompat switchFlip = dialogView.findViewById(R.id.switchFlipDisplay);
-        switchFlip.setChecked(currentFlip);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(pad, dp(8), pad, 0);
+
+        AlertDialog[] holder = new AlertDialog[1];
+        if (displays.isEmpty()) {
+            // Nothing paired yet (or older firmware): just the flip setting it already had
+            list.addView(flipRow(repository, "Flip display 180°"));
+        }
+        for (PermitRepository.DisplayInfo d : displays) {
+            PermitRepository displayRepo = repository.forDisplay(d);
+
+            TextView name = new TextView(this);
+            name.setText(d.name + "  ✎");
+            name.setTextSize(17);
+            name.setTypeface(null, android.graphics.Typeface.BOLD);
+            name.setPadding(0, dp(12), 0, 0);
+            name.setOnClickListener(v -> renameDisplay(d, () -> { holder[0].dismiss(); openDisplaySettings(); }));
+            list.addView(name);
+
+            long seen = displayRepo.getLastDisplaySyncTime();
+            TextView sub = new TextView(this);
+            sub.setText(seen > 0 ? "Checked in " + TimeUtils.getRelativeTime(seen).toLowerCase(java.util.Locale.US)
+                : "Hasn't checked in yet");
+            sub.setTextSize(12);
+            sub.setTextColor(0xFF888888);
+            list.addView(sub);
+
+            list.addView(flipRow(displayRepo, "Flip 180°"));
+
+            TextView forget = new TextView(this);
+            forget.setText("Forget");
+            forget.setTextColor(0xFFF44336);
+            forget.setTextSize(14);
+            forget.setPadding(0, dp(4), dp(16), dp(8));
+            forget.setOnClickListener(v -> confirmForget(d, () -> { holder[0].dismiss(); openDisplaySettings(); }));
+            list.addView(forget);
+        }
+
+        TextView help = new TextView(this);
+        help.setText("To add a display, press its button near this phone.");
+        help.setTextSize(12);
+        help.setTextColor(0xFF888888);
+        help.setPadding(0, dp(16), 0, dp(8));
+        list.addView(help);
+
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.addView(list);
+
+        holder[0] = new AlertDialog.Builder(this)
+            .setTitle(displays.size() > 1 ? "Displays" : "Display Settings")
+            .setView(scroll)
+            .setPositiveButton("Done", null)
+            .setOnDismissListener(d -> refreshStatusTab())
+            .show();
+    }
+
+    private View flipRow(PermitRepository displayRepo, String label) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        TextView text = new TextView(this);
+        text.setText(label);
+        text.setTextSize(15);
+        row.addView(text, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        SwitchCompat flip = new SwitchCompat(this);
+        flip.setChecked(displayRepo.isDisplayFlipped());
+        flip.setOnCheckedChangeListener((b, checked) -> {
+            // The display picks this up at its next check-in (it sleeps in between)
+            displayRepo.setDisplayFlipped(checked);
+            Toast.makeText(this, "Saved. Press the display's button to apply it now.", Toast.LENGTH_LONG).show();
+        });
+        row.addView(flip);
+        return row;
+    }
+
+    private void renameDisplay(PermitRepository.DisplayInfo d, Runnable done) {
+        android.widget.EditText input = new android.widget.EditText(this);
+        input.setText(d.name);
+        input.setSingleLine(true);
+        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(24)});
+        input.setSelectAllOnFocus(true);
+        LinearLayout box = new LinearLayout(this);
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        box.addView(input, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-            .setTitle("Display Settings")
-            .setView(dialogView)
-            .setPositiveButton("OK", null)
+            .setTitle("Rename display")
+            .setView(box)
+            .setPositiveButton("Save", null)
             .setNegativeButton("Cancel", null)
             .create();
+        dialog.setOnShowListener(x -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String name = input.getText().toString().trim();
+            if (name.isEmpty()) {
+                input.setError("Enter a name");
+                return;
+            }
+            new PermitRepository(this).renameDisplay(d.id, name);
+            dialog.dismiss();
+            done.run();
+        }));
+        dialog.show();
+    }
 
-        dialog.setOnShowListener(d -> {
-            Button okButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            okButton.setOnClickListener(v -> {
-                boolean newFlip = switchFlip.isChecked();
-                if (newFlip != currentFlip) {
-                    // The display picks this up at its next check-in (it sleeps in between)
-                    repository.setDisplayFlipped(newFlip);
-                    Toast.makeText(this, "Saved. Press the display's button to apply it now.", Toast.LENGTH_LONG).show();
+    private void confirmForget(PermitRepository.DisplayInfo d, Runnable done) {
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Forget " + d.name + "?")
+            .setMessage("It unpairs and clears its permit the next time it checks in.")
+            .setPositiveButton("Forget", (x, w) -> {
+                new PermitRepository(this).forgetDisplay(d.id);
+                done.run();
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(0xFFF44336);
+    }
+
+    // Where the permit comes from: the feed URL and an optional access token
+    private void openAccountSettings() {
+        PermitRepository repository = new PermitRepository(this);
+        int pad = dp(20);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(pad, dp(8), pad, 0);
+
+        android.widget.EditText url = new android.widget.EditText(this);
+        url.setHint("Permit feed URL");
+        url.setSingleLine(true);
+        url.setInputType(android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        url.setText(repository.getFeedUrl());
+        box.addView(url);
+
+        android.widget.EditText token = new android.widget.EditText(this);
+        token.setHint("Access token (optional)");
+        token.setSingleLine(true);
+        token.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+            | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        token.setText(repository.getFeedToken());
+        box.addView(token);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Account")
+            .setView(box)
+            .setPositiveButton("Save", null)
+            .setNegativeButton("Cancel", null)
+            .setNeutralButton("Reset", null)
+            .create();
+        dialog.setOnShowListener(x -> {
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                url.setText(PermitRepository.PERMIT_URL);
+                token.setText("");
+            });
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String u = url.getText().toString().trim();
+                okhttp3.HttpUrl parsed = okhttp3.HttpUrl.parse(u);
+                if (parsed == null || !parsed.isHttps()) {
+                    url.setError("Enter an https:// address");
+                    return;
                 }
+                repository.setAccount(u, token.getText().toString().trim());
                 dialog.dismiss();
+                checkFeedNow();
             });
         });
-
         dialog.show();
+    }
+
+    private void checkFeedNow() {
+        new PermitSyncTask(this).sync(new PermitSyncTask.SyncCallback() {
+            @Override
+            public void onSuccess(PermitData permit, boolean isNew) {
+                Toast.makeText(MainActivity.this, "Saved. Permit " + permit.permitNumber + " found.",
+                    Toast.LENGTH_SHORT).show();
+                refreshStatusTab();
+            }
+
+            @Override
+            public void onError(String error) {
+                Toast.makeText(MainActivity.this, "Saved, but the feed didn't load: " + error,
+                    Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private void refreshStatusTab() {
+        BleStatusFragment f = pagerAdapter.getBleStatusFragment();
+        if (f != null) f.updateUI();
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     private void openNotificationSettings() {

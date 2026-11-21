@@ -62,6 +62,7 @@ public class BleStatusFragment extends Fragment {
     private TextView tvCoverageWarning;
     private BatteryView batteryView;
     private TextView tvDisplayBattery;
+    private TextView tvDisplayPicker;
 
     private PermitRepository repository;
     private Handler handler;
@@ -147,6 +148,8 @@ public class BleStatusFragment extends Fragment {
         tvCoverageWarning = view.findViewById(R.id.tvCoverageWarning);
         batteryView = view.findViewById(R.id.batteryView);
         tvDisplayBattery = view.findViewById(R.id.tvDisplayBattery);
+        tvDisplayPicker = view.findViewById(R.id.tvDisplayPicker);
+        tvDisplayPicker.setOnClickListener(v -> pickDisplay());
         view.findViewById(R.id.displayBatteryGroup).setOnClickListener(v -> showDisplayDetails());
         view.findViewById(R.id.permitCard).setOnClickListener(v -> showCurrentPermitDetails());
         scheduledPermitCard.setOnClickListener(v -> showNextPermitDetails());
@@ -260,8 +263,39 @@ public class BleStatusFragment extends Fragment {
         }
     }
 
-    private void updateUI() {
+    private void pickDisplay() {
+        java.util.List<PermitRepository.DisplayInfo> displays = repository.getActiveDisplays();
+        String[] names = new String[displays.size()];
+        int checked = 0;
+        PermitRepository.DisplayInfo selected = repository.getSelectedDisplay();
+        for (int i = 0; i < names.length; i++) {
+            names[i] = displays.get(i).name;
+            if (selected != null && displays.get(i).id.equals(selected.id)) checked = i;
+        }
+        new AlertDialog.Builder(requireContext())
+            .setTitle("Show display")
+            .setSingleChoiceItems(names, checked, (d, which) -> {
+                repository.setSelectedDisplay(displays.get(which).id);
+                d.dismiss();
+                updateUI();
+            })
+            .show();
+    }
+
+    // Public so Display Settings can refresh it after a rename or forget
+    public void updateUI() {
         if (!isAdded() || repository == null) return;
+
+        // Re-read each time: displays get added, renamed, forgotten or picked elsewhere
+        repository = new PermitRepository(requireContext());
+        java.util.List<PermitRepository.DisplayInfo> displays = repository.getActiveDisplays();
+        PermitRepository.DisplayInfo selected = repository.getSelectedDisplay();
+        if (displays.size() > 1 && selected != null) {
+            tvDisplayPicker.setText(selected.name + " ▾");
+            tvDisplayPicker.setVisibility(View.VISIBLE);
+        } else {
+            tvDisplayPicker.setVisibility(View.GONE);
+        }
 
         PermitData latestPermit = repository.getPermit();
         PermitData displayPermit = repository.getDisplayPermit();
@@ -652,8 +686,9 @@ public class BleStatusFragment extends Fragment {
         msg.append("Permit checked: ")
             .append(TimeUtils.getRelativeTime(repository.getLastSyncTime()).toLowerCase(Locale.US));
 
+        PermitRepository.DisplayInfo selected = repository.getSelectedDisplay();
         new AlertDialog.Builder(requireContext())
-            .setTitle("Display")
+            .setTitle(selected != null ? selected.name : "Display")
             .setMessage(msg.toString())
             .setPositiveButton("OK", null)
             .show();

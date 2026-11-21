@@ -70,6 +70,23 @@
 
         </LinearLayout>
 
+        <!-- Which display this tab shows; only with two or more -->
+        <TextView
+            android:id="@+id/tvDisplayPicker"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Display ▾"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="#64b5f6"
+            android:paddingTop="4dp"
+            android:paddingBottom="8dp"
+            android:paddingEnd="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?android:attr/selectableItemBackground"
+            android:visibility="gone" />
+
         <!-- Permit Card - Website Style (tap for details) -->
         <LinearLayout
             android:id="@+id/permitCard"

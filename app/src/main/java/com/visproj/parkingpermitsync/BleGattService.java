@@ -35,7 +35,9 @@ import androidx.core.app.NotificationCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class BleGattService extends Service {
     private static final String TAG = "BleGattService";
@@ -58,8 +60,13 @@ public class BleGattService extends Service {
     private static final byte SYNC_TYPE_MANUAL = 2;  // Button press - always show notification
     private static final byte SYNC_TYPE_FORCE = 3;   // Long press - always show notification
 
-    private byte pendingSyncType = SYNC_TYPE_AUTO;
-    private byte[] pendingPermitJson;
+    // One per connected display, keyed by its BLE address: several can sync at once
+    private static class Session {
+        byte syncType = SYNC_TYPE_AUTO;
+        PermitRepository.DisplayInfo display;
+        byte[] permitJson;
+    }
+    private final Map<String, Session> sessions = new ConcurrentHashMap<>();
 
     // Battery display writes "shownPermit,cachedPermit,batteryMv,fwVersion" after each sync
     public static final UUID STATUS_CHAR_UUID = UUID.fromString("0000ff03-0000-1000-8000-00805f9b34fb");
@@ -210,7 +217,8 @@ public class BleGattService extends Service {
                 BluetoothGattCharacteristic.PROPERTY_READ,
                 BluetoothGattCharacteristic.PERMISSION_READ);
 
-            // Sync type characteristic - ESP32 writes 1=auto, 2=manual, 3=force before reading permit
+            // Sync type characteristic - ESP32 writes 1=auto, 2=manual, 3=force before reading permit,
+            // followed by its 12-char display ID (firmware 3+)
             BluetoothGattCharacteristic syncTypeChar = new BluetoothGattCharacteristic(
                 SYNC_TYPE_CHAR_UUID,
                 BluetoothGattCharacteristic.PROPERTY_WRITE | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
@@ -255,10 +263,13 @@ public class BleGattService extends Service {
             .setTimeout(0)  // Advertise indefinitely
             .build();
 
+        // Owner ID as service data: paired displays only sync with this phone. The device name
+        // is left out, a long one would push the packet past 31 bytes.
         AdvertiseData advertiseData = new AdvertiseData.Builder()
-            .setIncludeDeviceName(true)
+            .setIncludeDeviceName(false)
             .setIncludeTxPowerLevel(false)
             .addServiceUuid(new ParcelUuid(SERVICE_UUID))
+            .addServiceData(new ParcelUuid(SERVICE_UUID), repository.getOwnerId())
             .build();
 
         AdvertiseData scanResponse = new AdvertiseData.Builder()
@@ -303,11 +314,12 @@ public class BleGattService extends Service {
             }
 
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                Log.d(TAG, "Device connected: " + deviceName + ", resetting pendingSyncType to AUTO (1)");
-                pendingSyncType = SYNC_TYPE_AUTO; // Reset to auto on new connection
+                Log.d(TAG, "Device connected: " + deviceName);
+                sessions.put(device.getAddress(), new Session());
                 sendBroadcast(ACTION_DEVICE_CONNECTED);
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 Log.d(TAG, "Device disconnected: " + deviceName);
+                sessions.remove(device.getAddress());
                 sendBroadcast(ACTION_DEVICE_DISCONNECTED);
             }
         }
@@ -317,15 +329,24 @@ public class BleGattService extends Service {
                 int offset, BluetoothGattCharacteristic characteristic) {
 
             if (PERMIT_CHAR_UUID.equals(characteristic.getUuid())) {
-                PermitData permit = repository.getPermit();
+                Session session = sessionFor(device);
+                PermitRepository.DisplayInfo display = session.display;
+                PermitRepository displayRepo = repository.forDisplay(display);
+                PermitData permit = display.unpair ? null : repository.getPermit();
                 // Built once per read: a long read comes in several offset requests and the
                 // JSON carries the current time, so rebuilding would splice two versions
-                if (offset == 0 || pendingPermitJson == null) {
-                    pendingPermitJson = (permit != null
-                        ? permit.toDisplayJson(repository.isDisplayFlipped()) : "{}")
-                        .getBytes(StandardCharsets.UTF_8);
+                if (offset == 0 || session.permitJson == null) {
+                    String json;
+                    if (display.unpair) {
+                        json = "{\"unpair\":true}";
+                        Log.d(TAG, "Telling forgotten display " + display.id + " to unpair");
+                        repository.removeDisplay(display.id);
+                    } else {
+                        json = permit != null ? permit.toDisplayJson(displayRepo.isDisplayFlipped()) : "{}";
+                    }
+                    session.permitJson = json.getBytes(StandardCharsets.UTF_8);
                 }
-                byte[] data = pendingPermitJson;
+                byte[] data = session.permitJson;
 
                 Log.d(TAG, "Permit read request, sending " + data.length + " bytes");
 
@@ -337,16 +358,16 @@ public class BleGattService extends Service {
                 // Show notification and record sync time on first chunk (offset 0)
                 if (offset == 0 && permit != null) {
                     // Check if permit is different from last synced
-                    String lastSyncedPermit = repository.getDisplayPermitNumber();
+                    String lastSyncedPermit = displayRepo.getDisplayPermitNumber();
                     // Only consider it "new" if we have a previous record AND it differs
                     boolean isNewPermit = lastSyncedPermit != null &&
                         !lastSyncedPermit.equals(permit.permitNumber);
 
-                    byte syncType = pendingSyncType;
+                    byte syncType = session.syncType;
                     boolean isManualSync = syncType == SYNC_TYPE_MANUAL || syncType == SYNC_TYPE_FORCE;
 
                     // Get previous permit for price comparison before updating
-                    PermitData previousPermit = repository.getDisplayPermit();
+                    PermitData previousPermit = displayRepo.getDisplayPermit();
 
                     Log.d(TAG, "Sync decision: lastSynced=" + lastSyncedPermit +
                         ", current=" + permit.permitNumber +
@@ -354,7 +375,7 @@ public class BleGattService extends Service {
                         ", syncType=" + syncType +
                         ", isManualSync=" + isManualSync);
 
-                    repository.setDisplayPermit(permit);
+                    displayRepo.setDisplayPermit(permit);
 
                     // Show notification if:
                     // - Manual sync (button press) - always notify
@@ -362,11 +383,11 @@ public class BleGattService extends Service {
                     // - New permit (permit number actually changed) - notify
                     // AUTO sync with same/unknown permit should be silent
                     if (isManualSync || isNewPermit) {
-                        showSyncNotification(permit, previousPermit, isNewPermit, syncType);
+                        showSyncNotification(display, permit, previousPermit, isNewPermit, syncType);
                     }
 
                     // Reset sync type after handling
-                    pendingSyncType = SYNC_TYPE_AUTO;
+                    session.syncType = SYNC_TYPE_AUTO;
                     sendBroadcast(ACTION_PERMIT_READ, isNewPermit);
                 }
 
@@ -397,7 +418,7 @@ public class BleGattService extends Service {
 
             if (STATUS_CHAR_UUID.equals(characteristic.getUuid())) {
                 if (value != null && value.length > 0) {
-                    handleDisplayStatus(new String(value, StandardCharsets.UTF_8));
+                    handleDisplayStatus(sessionFor(device).display, new String(value, StandardCharsets.UTF_8));
                 }
                 if (responseNeeded) {
                     try {
@@ -408,8 +429,18 @@ public class BleGattService extends Service {
                 }
             } else if (SYNC_TYPE_CHAR_UUID.equals(characteristic.getUuid())) {
                 if (value != null && value.length > 0) {
-                    pendingSyncType = value[0];
-                    Log.d(TAG, "Sync type set to: " + pendingSyncType);
+                    Session session = sessions.get(device.getAddress());
+                    if (session == null) {
+                        session = new Session();
+                        sessions.put(device.getAddress(), session);
+                    }
+                    session.syncType = value[0];
+                    if (value.length > 1) {
+                        String id = new String(value, 1, value.length - 1, StandardCharsets.US_ASCII).trim();
+                        if (!id.isEmpty()) session.display = repository.registerDisplay(id);
+                    }
+                    Log.d(TAG, "Sync type " + session.syncType + " from display "
+                        + (session.display != null ? session.display.id : "(no ID)"));
                 }
 
                 if (responseNeeded) {
@@ -430,6 +461,30 @@ public class BleGattService extends Service {
             }
         }
     };
+
+    // The connection's session. Older firmware sends no ID: it uses the single-display status
+    // without being registered, so after a reflash it doesn't linger as a second display.
+    private Session sessionFor(BluetoothDevice device) {
+        String address = device.getAddress();
+        Session session = sessions.get(address);
+        if (session == null) {
+            session = new Session();
+            sessions.put(address, session);
+        }
+        if (session.display == null) {
+            PermitRepository.DisplayInfo legacy = new PermitRepository.DisplayInfo();
+            legacy.id = address;
+            legacy.name = "Display";
+            legacy.keyPrefix = "";
+            session.display = legacy;
+        }
+        return session;
+    }
+
+    // Name the display in notifications only when there's more than one
+    private String displayPrefix(PermitRepository.DisplayInfo display) {
+        return repository.getActiveDisplays().size() > 1 ? display.name + ": " : "";
+    }
 
     private boolean hasBluetoothPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -452,7 +507,8 @@ public class BleGattService extends Service {
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
     }
 
-    private void showSyncNotification(PermitData permit, PermitData previousPermit, boolean isNewPermit, byte syncType) {
+    private void showSyncNotification(PermitRepository.DisplayInfo display, PermitData permit,
+            PermitData previousPermit, boolean isNewPermit, byte syncType) {
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(
             this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
@@ -474,6 +530,7 @@ public class BleGattService extends Service {
             : permit.plateNumber;
 
         // Build expanded text with details
+        message = displayPrefix(display) + message;
         StringBuilder details = new StringBuilder();
         details.append(message);
         details.append("\nPermit ").append(permit.permitNumber).append(" • ").append(permit.plateNumber);
@@ -535,8 +592,9 @@ public class BleGattService extends Service {
         manager.notify(SYNC_NOTIFICATION_ID, notification);
     }
 
-    private void handleDisplayStatus(String status) {
-        Log.d(TAG, "Display status: " + status);
+    private void handleDisplayStatus(PermitRepository.DisplayInfo display, String status) {
+        Log.d(TAG, "Display " + display.id + " status: " + status);
+        PermitRepository displayRepo = repository.forDisplay(display);
         String[] parts = status.split(",");
         if (parts.length < 3) return;
         int mv;
@@ -545,23 +603,25 @@ public class BleGattService extends Service {
         } catch (NumberFormatException e) {
             return;
         }
-        repository.saveDisplayStatus(parts[0].trim(), parts[1].trim(), mv);
+        displayRepo.saveDisplayStatus(parts[0].trim(), parts[1].trim(), mv);
         sendBroadcast(ACTION_DISPLAY_STATUS);
         // It's checking in again: clear any "hasn't checked in" alert
         getSystemService(NotificationManager.class).cancel(AlarmReceiver.NOTIFICATION_CHECKIN);
 
         if (mv > 0 && PermitRepository.batteryPercent(mv) <= BATTERY_LOW_PERCENT
-                && !repository.isBatteryLowNotified()) {
-            repository.setBatteryLowNotified();
+                && !displayRepo.isBatteryLowNotified()) {
+            displayRepo.setBatteryLowNotified();
             int pct = PermitRepository.batteryPercent(mv);
-            String text = "Display battery is at " + pct + "%. Charge it soon.";
+            boolean several = repository.getActiveDisplays().size() > 1;
+            String text = (several ? display.name : "Display") + " battery is at " + pct + "%. Charge it soon.";
             Notification n = new NotificationCompat.Builder(this, "permit_updates")
-                .setContentTitle("Charge the display")
+                .setContentTitle(several ? "Charge " + display.name : "Charge the display")
                 .setContentText(text)
                 .setSmallIcon(R.drawable.ic_bluetooth)
                 .setAutoCancel(true)
                 .build();
-            getSystemService(NotificationManager.class).notify(BATTERY_NOTIFICATION_ID, n);
+            // One per display, so two low units don't replace each other's notice
+            getSystemService(NotificationManager.class).notify(BATTERY_NOTIFICATION_ID + display.id.hashCode(), n);
         }
     }
 

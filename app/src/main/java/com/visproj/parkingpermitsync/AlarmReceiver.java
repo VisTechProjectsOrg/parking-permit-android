@@ -105,12 +105,34 @@ public class AlarmReceiver extends BroadcastReceiver {
             }
         }
 
+        // Each paired display (before any has checked in with an ID: the single-display status)
+        java.util.List<PermitRepository.DisplayInfo> displays = repo.getActiveDisplays();
+        java.util.List<String> names = new java.util.ArrayList<>();
+        java.util.List<PermitRepository> repos = new java.util.ArrayList<>();
+        for (PermitRepository.DisplayInfo d : displays) {
+            names.add(d.name);
+            repos.add(repo.forDisplay(d));
+        }
+        if (repos.isEmpty()) {
+            names.add("Display");
+            repos.add(repo);
+        }
+        boolean several = repos.size() > 1;
+
         // Display gone quiet (dead battery, out of range): it normally checks in twice a day
         int alertDays = repo.getCheckinAlertDays();
-        long lastCheckin = repo.getLastDisplaySyncTime();
-        if (alertDays > 0 && lastCheckin > 0
-                && System.currentTimeMillis() - lastCheckin > TimeUnit.DAYS.toMillis(alertDays)) {
-            showCheckinNotification(context, lastCheckin);
+        java.util.List<String> quiet = new java.util.ArrayList<>();
+        long oldestCheckin = 0;
+        for (int i = 0; i < repos.size(); i++) {
+            long lastCheckin = repos.get(i).getLastDisplaySyncTime();
+            if (alertDays > 0 && lastCheckin > 0
+                    && System.currentTimeMillis() - lastCheckin > TimeUnit.DAYS.toMillis(alertDays)) {
+                quiet.add(names.get(i));
+                if (oldestCheckin == 0 || lastCheckin < oldestCheckin) oldestCheckin = lastCheckin;
+            }
+        }
+        if (!quiet.isEmpty()) {
+            showCheckinNotification(context, oldestCheckin, several ? quiet : null);
         }
 
         if (!repo.isRemindersEnabled()) {
@@ -118,8 +140,12 @@ public class AlarmReceiver extends BroadcastReceiver {
             return;
         }
 
-        if (!repo.isDisplayOutOfSync()) {
-            Log.d(TAG, "Display is in sync, no reminder needed");
+        java.util.List<String> behind = new java.util.ArrayList<>();
+        for (int i = 0; i < repos.size(); i++) {
+            if (repos.get(i).isDisplayOutOfSync()) behind.add(names.get(i));
+        }
+        if (behind.isEmpty()) {
+            Log.d(TAG, "Displays are in sync, no reminder needed");
             return;
         }
 
@@ -136,7 +162,13 @@ public class AlarmReceiver extends BroadcastReceiver {
         boolean escalate = daysSinceNew >= ESCALATION_DAYS;
         Log.d(TAG, "Reminder: display out of sync for " + daysSinceNew + " days, escalated=" + escalate);
 
-        showReminderNotification(context, permit, daysSinceNew, escalate);
+        showReminderNotification(context, permit, daysSinceNew, escalate, several ? behind : null);
+    }
+
+    // "Driveway and Garage", "A, B and C"
+    private static String joinNames(java.util.List<String> names) {
+        if (names.size() == 1) return names.get(0);
+        return String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.get(names.size() - 1);
     }
 
     // --- Scheduling ---
@@ -206,12 +238,15 @@ public class AlarmReceiver extends BroadcastReceiver {
         manager.notify(NOTIFICATION_NEW_PERMIT, notification);
     }
 
+    // names: the displays that are behind, or null with a single display
     private static void showReminderNotification(Context context, PermitData permit,
-                                                  long daysSinceNew, boolean escalate) {
+                                                  long daysSinceNew, boolean escalate,
+                                                  java.util.List<String> names) {
         NotificationManager manager =
             (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
-        String title = "Display Update Needed";
+        String title = names == null ? "Display Update Needed"
+            : joinNames(names) + (names.size() == 1 ? " needs an update" : " need an update");
         String shortText;
         String longText;
         if (daysSinceNew <= 0) {
@@ -276,14 +311,17 @@ public class AlarmReceiver extends BroadcastReceiver {
         manager.notify(NOTIFICATION_COVERAGE, notification);
     }
 
-    private static void showCheckinNotification(Context context, long lastCheckin) {
+    // names: the quiet displays, or null with a single display
+    private static void showCheckinNotification(Context context, long lastCheckin, java.util.List<String> names) {
         NotificationManager manager =
             (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         String since = new java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.US)
             .format(new java.util.Date(lastCheckin));
+        String title = names == null ? "Display hasn't checked in"
+            : joinNames(names) + (names.size() == 1 ? " hasn't checked in" : " haven't checked in");
         Notification notification = new Notification.Builder(context, "permit_updates")
             .setSmallIcon(R.drawable.ic_bluetooth)
-            .setContentTitle("Display hasn't checked in")
+            .setContentTitle(title)
             .setContentText("Last seen " + since)
             .setStyle(new Notification.BigTextStyle().bigText("Last seen " + since + ".\n" +
                 "Check its battery, or press its button with your phone nearby."))

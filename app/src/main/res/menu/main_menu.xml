@@ -8,6 +8,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_account"
+        android:title="Account"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_notifications"
         android:title="Notification Settings"
         app:showAsAction="never" />
