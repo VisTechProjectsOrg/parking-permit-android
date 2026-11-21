@@ -52,6 +52,7 @@ public class BleStatusFragment extends Fragment {
     private TextView tvScheduledDates;
     private TextView tvScheduledVehicle;
     private TextView tvScheduledPrice;
+    private TextView tvScheduledBadge;
     private LinearLayout displaySyncWarning;
     private TextView tvCoverageWarning;
     private BatteryView batteryView;
@@ -136,6 +137,7 @@ public class BleStatusFragment extends Fragment {
         tvScheduledDates = view.findViewById(R.id.tvScheduledDates);
         tvScheduledVehicle = view.findViewById(R.id.tvScheduledVehicle);
         tvScheduledPrice = view.findViewById(R.id.tvScheduledPrice);
+        tvScheduledBadge = view.findViewById(R.id.tvScheduledBadge);
         displaySyncWarning = view.findViewById(R.id.displaySyncWarning);
         tvCoverageWarning = view.findViewById(R.id.tvCoverageWarning);
         batteryView = view.findViewById(R.id.batteryView);
@@ -363,6 +365,13 @@ public class BleStatusFragment extends Fragment {
                 tvScheduledPrice.setVisibility(View.GONE);
             }
 
+            // Stored on the display = it switches to it by itself when it starts
+            if (nextPermit.permitNumber.equals(repository.getDisplayCachedPermitNumber())) {
+                setScheduledBadge("On display", R.drawable.badge_green);
+            } else {
+                setScheduledBadge("Scheduled", R.drawable.badge_blue);
+            }
+
             scheduledPermitCard.setVisibility(View.VISIBLE);
             return;
         }
@@ -403,6 +412,7 @@ public class BleStatusFragment extends Fragment {
                 Date nextEnd = cal.getTime();
 
                 tvScheduledNumber.setText("Pending");
+                setScheduledBadge("Not bought yet", R.drawable.badge_orange);
                 String dateRange = outputFormat.format(nextStart) + " - " + outputFormat.format(nextEnd);
                 tvScheduledDates.setText(dateRange);
                 tvScheduledVehicle.setText(vehicleLabel(currentPermit));
@@ -422,6 +432,11 @@ public class BleStatusFragment extends Fragment {
         } catch (ParseException e) {
             scheduledPermitCard.setVisibility(View.GONE);
         }
+    }
+
+    private void setScheduledBadge(String text, int background) {
+        tvScheduledBadge.setText(text);
+        tvScheduledBadge.setBackgroundResource(background);
     }
 
     private String formatDateRange(String from, String to) {

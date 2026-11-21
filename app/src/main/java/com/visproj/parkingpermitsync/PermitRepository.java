@@ -140,6 +140,12 @@ public class PermitRepository {
         e.apply();
     }
 
+    // The next permit the display is holding (switches to it on its own when it starts), or null
+    public String getDisplayCachedPermitNumber() {
+        String cached = prefs.getString(KEY_DISPLAY_CACHED_PERMIT, null);
+        return cached == null || cached.isEmpty() ? null : cached;
+    }
+
     public int getDisplayBatteryMv() {
         return prefs.getInt(KEY_BATTERY_MV, 0);
     }
