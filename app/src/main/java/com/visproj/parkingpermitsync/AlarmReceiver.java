@@ -226,7 +226,7 @@ public class AlarmReceiver extends BroadcastReceiver {
             (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
         Notification notification = new Notification.Builder(context, "permit_updates")
-            .setSmallIcon(R.drawable.ic_bluetooth)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("New permit bought")
             .setContentText("Permit " + permit.permitNumber)
             .setStyle(new Notification.BigTextStyle().bigText(
@@ -264,7 +264,7 @@ public class AlarmReceiver extends BroadcastReceiver {
         }
 
         Notification.Builder builder = new Notification.Builder(context, "permit_updates")
-            .setSmallIcon(R.drawable.ic_bluetooth)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(shortText)
             .setStyle(new Notification.BigTextStyle().bigText(longText))
@@ -279,7 +279,7 @@ public class AlarmReceiver extends BroadcastReceiver {
                 urgentChannel.setDescription("Persistent reminders when display is out of date");
                 manager.createNotificationChannel(urgentChannel);
                 builder = new Notification.Builder(context, "permit_urgent")
-                    .setSmallIcon(R.drawable.ic_bluetooth)
+                    .setSmallIcon(R.drawable.ic_notification)
                     .setContentTitle(title)
                     .setContentText(shortText)
                     .setStyle(new Notification.BigTextStyle().bigText(longText))
@@ -300,7 +300,7 @@ public class AlarmReceiver extends BroadcastReceiver {
         String vehicle = (permit.vehicleName != null && !permit.vehicleName.isEmpty())
             ? permit.vehicleName : permit.plateNumber;
         Notification notification = new Notification.Builder(context, "permit_urgent")
-            .setSmallIcon(R.drawable.ic_bluetooth)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(vehicle + ": not covered")
             .setContentText(message)
             .setStyle(new Notification.BigTextStyle().bigText(message))
@@ -320,7 +320,7 @@ public class AlarmReceiver extends BroadcastReceiver {
         String title = names == null ? "Display hasn't checked in"
             : joinNames(names) + (names.size() == 1 ? " hasn't checked in" : " haven't checked in");
         Notification notification = new Notification.Builder(context, "permit_updates")
-            .setSmallIcon(R.drawable.ic_bluetooth)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText("Last seen " + since)
             .setStyle(new Notification.BigTextStyle().bigText("Last seen " + since + ".\n" +
@@ -335,7 +335,7 @@ public class AlarmReceiver extends BroadcastReceiver {
             (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
         Notification notification = new Notification.Builder(context, "permit_updates")
-            .setSmallIcon(R.drawable.ic_bluetooth)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Permit Sync Failed")
             .setContentText("Sync has failed " + failures + " times in a row")
             .setStyle(new Notification.BigTextStyle().bigText(

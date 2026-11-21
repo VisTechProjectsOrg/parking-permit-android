@@ -264,10 +264,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void createNotificationChannels() {
-        NotificationChannel bleChannel = new NotificationChannel(
-            "ble_service_channel", "Background sync", NotificationManager.IMPORTANCE_LOW);
-        bleChannel.setDescription("Keeps the display in sync while the app is closed");
-
         NotificationChannel updateChannel = new NotificationChannel(
             "permit_updates", "Permit Updates", NotificationManager.IMPORTANCE_DEFAULT);
         updateChannel.setDescription("Notifications for new permits");
@@ -277,7 +273,7 @@ public class MainActivity extends AppCompatActivity {
         urgentChannel.setDescription("Persistent reminders when display is out of date");
 
         NotificationManager manager = getSystemService(NotificationManager.class);
-        manager.createNotificationChannel(bleChannel);
+        BleGattService.createBackgroundChannel(manager);
         manager.createNotificationChannel(updateChannel);
         manager.createNotificationChannel(urgentChannel);
     }

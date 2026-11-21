@@ -74,7 +74,10 @@ public class BleGattService extends Service {
     private static final int BATTERY_LOW_PERCENT = 20;
     private static final int BATTERY_NOTIFICATION_ID = 6;
 
-    private static final String CHANNEL_ID = "ble_service_channel";
+    // Lowest importance: no status bar icon. A new ID, since Android keeps a channel's
+    // importance from when it was first created (the old one was "ble_service_channel").
+    public static final String CHANNEL_ID = "background_sync";
+    private static final String OLD_CHANNEL_ID = "ble_service_channel";
     private static final int NOTIFICATION_ID = 1;
     private static final int SYNC_NOTIFICATION_ID = 2;
 
@@ -171,7 +174,7 @@ public class BleGattService extends Service {
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText("Keeping your display up to date")
-            .setSmallIcon(R.drawable.ic_bluetooth)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build();
@@ -582,7 +585,7 @@ public class BleGattService extends Service {
             .setContentText(message)
             .setStyle(new NotificationCompat.BigTextStyle()
                 .bigText(details.toString()))
-            .setSmallIcon(R.drawable.ic_bluetooth)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setColor(0xFF2196F3)
@@ -621,7 +624,7 @@ public class BleGattService extends Service {
             Notification n = new NotificationCompat.Builder(this, "permit_updates")
                 .setContentTitle(several ? "Charge " + display.name : "Charge the display")
                 .setContentText(text)
-                .setSmallIcon(R.drawable.ic_bluetooth)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setAutoCancel(true)
                 .build();
             // One per display, so two low units don't replace each other's notice
@@ -635,16 +638,25 @@ public class BleGattService extends Service {
         return Double.parseDouble(cleaned);
     }
 
+    // The always-on notification that keeps the service alive: collapsed, silent, no status bar icon
+    public static void createBackgroundChannel(NotificationManager manager) {
+        try {
+            manager.deleteNotificationChannel(OLD_CHANNEL_ID);
+        } catch (SecurityException e) {
+            // Still in use by a running foreground notification; it goes on the next start
+            Log.w(TAG, "Old notification channel still in use", e);
+        }
+        NotificationChannel channel = new NotificationChannel(
+            CHANNEL_ID, "Background sync", NotificationManager.IMPORTANCE_MIN);
+        channel.setDescription("Keeps the display in sync while the app is closed");
+        channel.setShowBadge(false);
+        manager.createNotificationChannel(channel);
+    }
+
     private void createNotificationChannel() {
         NotificationManager manager = getSystemService(NotificationManager.class);
 
-        // BLE service channel (low importance, silent)
-        NotificationChannel serviceChannel = new NotificationChannel(
-            CHANNEL_ID,
-            "Background sync",
-            NotificationManager.IMPORTANCE_LOW);
-        serviceChannel.setDescription("Keeps the display in sync while the app is closed");
-        manager.createNotificationChannel(serviceChannel);
+        createBackgroundChannel(manager);
 
         // Permit updates channel (default importance, shows notifications)
         NotificationChannel updatesChannel = new NotificationChannel(
