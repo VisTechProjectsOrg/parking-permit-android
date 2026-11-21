@@ -21,6 +21,7 @@ public class WebViewFragment extends Fragment {
 
     private WebView webView;
     private ProgressBar progressBar;
+    private String pendingUrl;  // asked for before the view existed (e.g. from a notification)
 
     @Nullable
     @Override
@@ -36,7 +37,8 @@ public class WebViewFragment extends Fragment {
         progressBar = view.findViewById(R.id.progressBar);
 
         setupWebView();
-        webView.loadUrl(URL);
+        webView.loadUrl(pendingUrl != null ? pendingUrl : URL);
+        pendingUrl = null;
     }
 
     private void setupWebView() {
@@ -116,6 +118,8 @@ public class WebViewFragment extends Fragment {
     public void loadUrl(String url) {
         if (webView != null) {
             webView.loadUrl(url);
+        } else {
+            pendingUrl = url;
         }
     }
 }
