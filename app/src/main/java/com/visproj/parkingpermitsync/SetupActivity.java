@@ -88,6 +88,7 @@ public class SetupActivity extends AppCompatActivity {
         setContentView(R.layout.activity_setup);
         repository = new PermitRepository(this);
         addDisplayOnly = getIntent().getBooleanExtra(EXTRA_ADD_DISPLAY, false);
+        if (!addDisplayOnly && !repository.isSetupDone()) repository.setSetupStarted();
 
         tvStep = findViewById(R.id.tvStep);
         btnNext = findViewById(R.id.btnNext);
@@ -321,15 +322,22 @@ public class SetupActivity extends AppCompatActivity {
         addPermissionRow("Keep running", SamsungBatteryHelper.getUnusedAppPauseInstruction(), false,
             SamsungBatteryHelper.isUnusedAppPauseDisabled(this),
             () -> openSettings(SamsungBatteryHelper.getUnusedAppPauseIntent(this)));
-        // Optional: Android 13+ keeps the sync running with this notification switched off
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        // Optional: Android 13+ keeps the sync running with this notification switched off.
+        // Only once notifications are allowed: before that nothing shows anyway, and the
+        // settings page would open on the app-wide switch instead of this channel's.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && hasNotifications()) {
             addPermissionRow("Hide background notification", "Optional. Turn off Background sync; alerts still show.",
                 false, BleGattService.isBackgroundNotificationHidden(this),
-                () -> openSettings(BleGattService.backgroundNotificationSettingsIntent(this)));
+                () -> openSettings(BleGattService.backgroundNotificationSettingsIntent(this)), "Hide");
         }
     }
 
     private void addPermissionRow(String title, String subtitle, boolean flagged, boolean granted, Runnable allow) {
+        addPermissionRow(title, subtitle, flagged, granted, allow, "Allow");
+    }
+
+    private void addPermissionRow(String title, String subtitle, boolean flagged, boolean granted, Runnable allow,
+                                  String buttonText) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -363,7 +371,7 @@ public class SetupActivity extends AppCompatActivity {
             row.addView(ok);
         } else {
             Button b = new Button(this);
-            b.setText("Allow");
+            b.setText(buttonText);
             b.setTextColor(0xFFFFFFFF);
             b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(COLOR_BLUE));
             b.setOnClickListener(v -> allow.run());

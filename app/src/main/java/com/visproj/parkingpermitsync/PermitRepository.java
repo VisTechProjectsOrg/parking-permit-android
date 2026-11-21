@@ -33,6 +33,7 @@ public class PermitRepository {
     private static final String KEY_FEED_URL = "feed_url";
     private static final String KEY_FEED_TOKEN = "feed_token";
     private static final String KEY_SETUP_DONE = "setup_done";
+    private static final String KEY_SETUP_STARTED = "setup_started";
 
     public static final String PERMIT_URL = "https://fucktorontoparking.ca/api/permit";
 
@@ -190,9 +191,16 @@ public class PermitRepository {
     }
 
     // First-run setup finished. Installs from before setup existed (a permit or a display
-    // already saved) count as done.
+    // already saved) count as done, but not once setup has started: its feed step saves a
+    // permit, and a restart mid-setup must land back in setup.
     public boolean isSetupDone() {
-        return prefs.getBoolean(KEY_SETUP_DONE, false) || getPermit() != null || !getDisplays().isEmpty();
+        if (prefs.getBoolean(KEY_SETUP_DONE, false)) return true;
+        if (prefs.getBoolean(KEY_SETUP_STARTED, false)) return false;
+        return getPermit() != null || !getDisplays().isEmpty();
+    }
+
+    public void setSetupStarted() {
+        prefs.edit().putBoolean(KEY_SETUP_STARTED, true).apply();
     }
 
     public void setSetupDone() {
