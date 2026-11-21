@@ -74,10 +74,13 @@ public class BleGattService extends Service {
     private static final int BATTERY_LOW_PERCENT = 20;
     private static final int BATTERY_NOTIFICATION_ID = 6;
 
-    // Lowest importance: no status bar icon. A new ID, since Android keeps a channel's
-    // importance from when it was first created (the old one was "ble_service_channel").
-    public static final String CHANNEL_ID = "background_sync";
-    private static final String OLD_CHANNEL_ID = "ble_service_channel";
+    // Silent channel for the foreground service. Android raises a service's channel to at least
+    // LOW whatever the app asks for (tested: MIN and NONE both end up LOW), so only the user can
+    // turn it off; on Android 13+ the service keeps running when they do. See
+    // isBackgroundNotificationHidden().
+    // Older channel IDs are deleted (OLD_CHANNEL_IDS).
+    public static final String CHANNEL_ID = "background_service";
+    private static final String[] OLD_CHANNEL_IDS = {"ble_service_channel", "background_sync"};
     private static final int NOTIFICATION_ID = 1;
     private static final int SYNC_NOTIFICATION_ID = 2;
 
@@ -638,16 +641,31 @@ public class BleGattService extends Service {
         return Double.parseDouble(cleaned);
     }
 
-    // The always-on notification that keeps the service alive: collapsed, silent, no status bar icon
+    // The user switched the always-on notification off (it stays hidden, sync keeps running)
+    public static boolean isBackgroundNotificationHidden(Context context) {
+        NotificationChannel c = context.getSystemService(NotificationManager.class).getNotificationChannel(CHANNEL_ID);
+        return c != null && c.getImportance() == NotificationManager.IMPORTANCE_NONE;
+    }
+
+    // Opens the switch for the always-on notification
+    public static Intent backgroundNotificationSettingsIntent(Context context) {
+        return new Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.getPackageName())
+            .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, CHANNEL_ID);
+    }
+
+    // The always-on notification that keeps the service alive: silent, no badge
     public static void createBackgroundChannel(NotificationManager manager) {
-        try {
-            manager.deleteNotificationChannel(OLD_CHANNEL_ID);
-        } catch (SecurityException e) {
-            // Still in use by a running foreground notification; it goes on the next start
-            Log.w(TAG, "Old notification channel still in use", e);
+        for (String old : OLD_CHANNEL_IDS) {
+            try {
+                manager.deleteNotificationChannel(old);
+            } catch (SecurityException e) {
+                // Still in use by a running foreground notification; it goes on the next start
+                Log.w(TAG, "Old notification channel still in use: " + old, e);
+            }
         }
         NotificationChannel channel = new NotificationChannel(
-            CHANNEL_ID, "Background sync", NotificationManager.IMPORTANCE_MIN);
+            CHANNEL_ID, "Background sync", NotificationManager.IMPORTANCE_LOW);
         channel.setDescription("Keeps the display in sync while the app is closed");
         channel.setShowBadge(false);
         manager.createNotificationChannel(channel);

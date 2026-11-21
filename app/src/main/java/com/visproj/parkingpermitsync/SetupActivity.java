@@ -102,6 +102,8 @@ public class SetupActivity extends AppCompatActivity {
         etFeedToken.setText(repository.getFeedToken());
 
         permissionRows = findViewById(R.id.permissionRows);
+        // So the "Hide background notification" row has a channel to open before the service starts
+        BleGattService.createBackgroundChannel(getSystemService(android.app.NotificationManager.class));
 
         pairWaiting = findViewById(R.id.pairWaiting);
         pairDone = findViewById(R.id.pairDone);
@@ -319,6 +321,12 @@ public class SetupActivity extends AppCompatActivity {
         addPermissionRow("Keep running", SamsungBatteryHelper.getUnusedAppPauseInstruction(), false,
             SamsungBatteryHelper.isUnusedAppPauseDisabled(this),
             () -> openSettings(SamsungBatteryHelper.getUnusedAppPauseIntent(this)));
+        // Optional: Android 13+ keeps the sync running with this notification switched off
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            addPermissionRow("Hide background notification", "Optional. Turn off Background sync; alerts still show.",
+                false, BleGattService.isBackgroundNotificationHidden(this),
+                () -> openSettings(BleGattService.backgroundNotificationSettingsIntent(this)));
+        }
     }
 
     private void addPermissionRow(String title, String subtitle, boolean flagged, boolean granted, Runnable allow) {
