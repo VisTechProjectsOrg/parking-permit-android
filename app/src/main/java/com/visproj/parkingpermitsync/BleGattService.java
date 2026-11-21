@@ -643,6 +643,13 @@ public class BleGattService extends Service {
         int missNotFound = intAt(parts, 4, 0), missFailed = intAt(parts, 5, 0);
         int resetReason = intAt(parts, 6, -1), boots = intAt(parts, 7, -1);
         int previousBoots = displayRepo.saveDisplayDevInfo(fw, resetReason, boots);
+        int charging = intAt(parts, 8, -1);  // firmware 6+
+        if (charging >= 0) {
+            boolean was = displayRepo.setDisplayCharging(charging == 1);
+            if (was != (charging == 1)) {
+                ActivityLog.log(this, display.name + (charging == 1 ? " is charging" : " stopped charging"));
+            }
+        }
 
         StringBuilder line = new StringBuilder(display.name).append(" checked in: ");
         line.append(String.format(java.util.Locale.US, "%.2f V (%d%%)", mv / 1000.0, PermitRepository.batteryPercent(mv)));
