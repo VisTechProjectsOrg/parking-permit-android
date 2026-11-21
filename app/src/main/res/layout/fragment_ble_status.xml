@@ -70,8 +70,12 @@
 
         </LinearLayout>
 
-        <!-- Permit Card - Website Style -->
+        <!-- Permit Card - Website Style (tap for details) -->
         <LinearLayout
+            android:id="@+id/permitCard"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?android:attr/selectableItemBackground"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -145,6 +149,9 @@
         <!-- Scheduled Permit Card -->
         <LinearLayout
             android:id="@+id/scheduledPermitCard"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?android:attr/selectableItemBackground"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"

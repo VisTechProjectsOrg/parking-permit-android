@@ -15,7 +15,10 @@ import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.Spinner;
 import android.widget.Toast;
 
 import androidx.appcompat.widget.SwitchCompat;
@@ -330,6 +333,31 @@ public class MainActivity extends AppCompatActivity {
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_notification_settings, null);
         SwitchCompat switchReminders = dialogView.findViewById(R.id.switchReminders);
         switchReminders.setChecked(repository.isRemindersEnabled());
+
+        // Display check-in alert: Off / 1 / 2 / 3 / 7 days, saved on change like the switch
+        final int[] checkinDays = {0, 1, 2, 3, 7};
+        String[] checkinLabels = {"Off", "1 day", "2 days", "3 days", "7 days"};
+        Spinner spinnerCheckin = dialogView.findViewById(R.id.spinnerCheckinAlert);
+        ArrayAdapter<String> checkinAdapter = new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_item, checkinLabels);
+        checkinAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerCheckin.setAdapter(checkinAdapter);
+        int savedDays = repository.getCheckinAlertDays();
+        for (int i = 0; i < checkinDays.length; i++) {
+            if (checkinDays[i] == savedDays) spinnerCheckin.setSelection(i);
+        }
+        spinnerCheckin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                repository.setCheckinAlertDays(checkinDays[position]);
+                if (checkinDays[position] == 0) {
+                    getSystemService(NotificationManager.class).cancel(AlarmReceiver.NOTIFICATION_CHECKIN);
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
 
         switchReminders.setOnCheckedChangeListener((buttonView, isChecked) -> {
             repository.setRemindersEnabled(isChecked);

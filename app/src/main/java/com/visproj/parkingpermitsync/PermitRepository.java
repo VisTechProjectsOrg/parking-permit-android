@@ -18,6 +18,9 @@ public class PermitRepository {
     private static final String KEY_REMINDERS_ENABLED = "reminders_enabled";
     private static final String KEY_CONSECUTIVE_SYNC_FAILURES = "consecutive_sync_failures";
     private static final String KEY_DISPLAY_CACHED_PERMIT = "display_cached_permit";
+    private static final String KEY_CHECKIN_ALERT_DAYS = "checkin_alert_days";
+    private static final String KEY_SHOWN_SINCE = "display_shown_since";
+    private static final String KEY_SHOWN_REPORTED = "display_shown_reported";
     private static final String KEY_BATTERY_MV = "display_battery_mv";
     private static final String KEY_BATTERY_TIME = "display_battery_time";
     private static final String KEY_BATTERY_BASE_MV = "display_battery_base_mv";
@@ -114,7 +117,13 @@ public class PermitRepository {
     // ----- Status reported by the battery display after each sync: "shown,cached,mv,fw" -----
 
     public void saveDisplayStatus(String shown, String cached, int batteryMv) {
-        SharedPreferences.Editor e = prefs.edit()
+        SharedPreferences.Editor e = prefs.edit();
+        // First report of a new permit on screen = when it went on the display
+        // (own key: the permit read already updates the display permit number before this)
+        if (!shown.isEmpty() && !shown.equals(prefs.getString(KEY_SHOWN_REPORTED, null))) {
+            e.putLong(KEY_SHOWN_SINCE, System.currentTimeMillis()).putString(KEY_SHOWN_REPORTED, shown);
+        }
+        e
             .putString(KEY_DISPLAY_PERMIT_NUMBER, shown)
             .putString(KEY_DISPLAY_CACHED_PERMIT, cached)
             .putLong(KEY_LAST_DISPLAY_SYNC, System.currentTimeMillis());
@@ -138,6 +147,11 @@ public class PermitRepository {
             e.putInt(KEY_BATTERY_MV, batteryMv).putLong(KEY_BATTERY_TIME, now);
         }
         e.apply();
+    }
+
+    // When the permit now on the display was first reported there, or 0 if unknown
+    public long getShownSince() {
+        return prefs.getLong(KEY_SHOWN_SINCE, 0);
     }
 
     // The next permit the display is holding (switches to it on its own when it starts), or null
@@ -223,6 +237,15 @@ public class PermitRepository {
 
     public void clearNewPermitDetectedTime() {
         prefs.edit().remove(KEY_NEW_PERMIT_DETECTED).apply();
+    }
+
+    // Days without a display check-in before alerting; 0 = off. The display checks in twice a day.
+    public int getCheckinAlertDays() {
+        return prefs.getInt(KEY_CHECKIN_ALERT_DAYS, 2);
+    }
+
+    public void setCheckinAlertDays(int days) {
+        prefs.edit().putInt(KEY_CHECKIN_ALERT_DAYS, days).apply();
     }
 
     public boolean isRemindersEnabled() {

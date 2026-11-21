@@ -547,6 +547,8 @@ public class BleGattService extends Service {
         }
         repository.saveDisplayStatus(parts[0].trim(), parts[1].trim(), mv);
         sendBroadcast(ACTION_DISPLAY_STATUS);
+        // It's checking in again: clear any "hasn't checked in" alert
+        getSystemService(NotificationManager.class).cancel(AlarmReceiver.NOTIFICATION_CHECKIN);
 
         if (mv > 0 && PermitRepository.batteryPercent(mv) <= BATTERY_LOW_PERCENT
                 && !repository.isBatteryLowNotified()) {

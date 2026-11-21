@@ -41,6 +41,13 @@ public class PermitData {
     @SerializedName("next")
     public PermitData next;
 
+    // From the site: whether the autobuyer is on, and when it buys the next permit (permit format)
+    @SerializedName("autobuyer")
+    public Boolean autobuyer;
+
+    @SerializedName("nextBuy")
+    public String nextBuy = "";
+
     public static final int COVERAGE_OK = 0;
     public static final int COVERAGE_ENDS_TODAY = 1;   // nothing bought for tomorrow
     public static final int COVERAGE_EXPIRED = 2;      // car is not covered right now

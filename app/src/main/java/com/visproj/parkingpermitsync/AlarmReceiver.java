@@ -32,6 +32,7 @@ public class AlarmReceiver extends BroadcastReceiver {
     private static final int NOTIFICATION_REMINDER = 3;
     private static final int NOTIFICATION_SYNC_FAILURE = 4;
     private static final int NOTIFICATION_COVERAGE = 5;
+    public static final int NOTIFICATION_CHECKIN = 7;
 
     // Notify after this many consecutive sync failures
     private static final int FAILURE_THRESHOLD = 3;
@@ -102,6 +103,14 @@ public class AlarmReceiver extends BroadcastReceiver {
             if (coverageMsg != null) {
                 showCoverageNotification(context, latest, coverageMsg);
             }
+        }
+
+        // Display gone quiet (dead battery, out of range): it normally checks in twice a day
+        int alertDays = repo.getCheckinAlertDays();
+        long lastCheckin = repo.getLastDisplaySyncTime();
+        if (alertDays > 0 && lastCheckin > 0
+                && System.currentTimeMillis() - lastCheckin > TimeUnit.DAYS.toMillis(alertDays)) {
+            showCheckinNotification(context, lastCheckin);
         }
 
         if (!repo.isRemindersEnabled()) {
@@ -265,6 +274,22 @@ public class AlarmReceiver extends BroadcastReceiver {
             .build();
 
         manager.notify(NOTIFICATION_COVERAGE, notification);
+    }
+
+    private static void showCheckinNotification(Context context, long lastCheckin) {
+        NotificationManager manager =
+            (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        String since = new java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.US)
+            .format(new java.util.Date(lastCheckin));
+        Notification notification = new Notification.Builder(context, "permit_updates")
+            .setSmallIcon(R.drawable.ic_bluetooth)
+            .setContentTitle("Display hasn't checked in")
+            .setContentText("Last seen " + since)
+            .setStyle(new Notification.BigTextStyle().bigText("Last seen " + since + ".\n" +
+                "Check its battery, or press its button with your phone nearby."))
+            .setAutoCancel(true)
+            .build();
+        manager.notify(NOTIFICATION_CHECKIN, notification);
     }
 
     private static void showSyncFailureNotification(Context context, int failures) {

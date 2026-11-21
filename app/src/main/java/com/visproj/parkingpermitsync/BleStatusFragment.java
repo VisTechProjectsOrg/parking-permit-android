@@ -53,6 +53,11 @@ public class BleStatusFragment extends Fragment {
     private TextView tvScheduledVehicle;
     private TextView tvScheduledPrice;
     private TextView tvScheduledBadge;
+
+    // What the two permit cards currently show, for their tap-for-details cards
+    private PermitData cardCurrent;
+    private PermitData cardNext;      // null when the next card is an estimate
+    private PermitData cardEstimateBase;
     private LinearLayout displaySyncWarning;
     private TextView tvCoverageWarning;
     private BatteryView batteryView;
@@ -143,6 +148,8 @@ public class BleStatusFragment extends Fragment {
         batteryView = view.findViewById(R.id.batteryView);
         tvDisplayBattery = view.findViewById(R.id.tvDisplayBattery);
         view.findViewById(R.id.displayBatteryGroup).setOnClickListener(v -> showDisplayDetails());
+        view.findViewById(R.id.permitCard).setOnClickListener(v -> showCurrentPermitDetails());
+        scheduledPermitCard.setOnClickListener(v -> showNextPermitDetails());
 
         btnSync.setOnClickListener(v -> syncNow());
         btnBattery.setOnClickListener(v -> openBatterySettings());
@@ -279,6 +286,7 @@ public class BleStatusFragment extends Fragment {
             }
         }
 
+        cardCurrent = currentPermit != null && currentPermit.isValid() ? currentPermit : null;
         if (currentPermit != null && currentPermit.isValid()) {
             tvPermitNumber.setText(currentPermit.permitNumber);
             if (currentPermit.price != null && !currentPermit.price.isEmpty()) {
@@ -365,6 +373,7 @@ public class BleStatusFragment extends Fragment {
                 tvScheduledPrice.setVisibility(View.GONE);
             }
 
+            cardNext = nextPermit;
             // Stored on the display = it switches to it by itself when it starts
             if (nextPermit.permitNumber.equals(repository.getDisplayCachedPermitNumber())) {
                 setScheduledBadge("On display", R.drawable.badge_green);
@@ -411,6 +420,8 @@ public class BleStatusFragment extends Fragment {
                 cal.add(java.util.Calendar.DAY_OF_MONTH, 6);
                 Date nextEnd = cal.getTime();
 
+                cardNext = null;
+                cardEstimateBase = latestOrCurrent(currentPermit);
                 tvScheduledNumber.setText("Pending");
                 setScheduledBadge("Not bought yet", R.drawable.badge_orange);
                 String dateRange = outputFormat.format(nextStart) + " - " + outputFormat.format(nextEnd);
@@ -432,6 +443,81 @@ public class BleStatusFragment extends Fragment {
         } catch (ParseException e) {
             scheduledPermitCard.setVisibility(View.GONE);
         }
+    }
+
+    // The estimate card is built from the current permit; the buy time lives on the latest fetch
+    private PermitData latestOrCurrent(PermitData current) {
+        PermitData latest = repository.getPermit();
+        return latest != null ? latest : current;
+    }
+
+    // "Nov 22, 2:00 AM" (year only when it isn't this year), from the permit date format
+    private String fmtPermitTime(String value) {
+        try {
+            Date d = new SimpleDateFormat("MMM dd, yyyy: HH:mm", Locale.US).parse(value);
+            if (d == null) return value;
+            boolean thisYear = new SimpleDateFormat("yyyy", Locale.US).format(d)
+                .equals(new SimpleDateFormat("yyyy", Locale.US).format(new Date()));
+            return new SimpleDateFormat(thisYear ? "MMM d, h:mm a" : "MMM d, yyyy, h:mm a", Locale.US).format(d);
+        } catch (ParseException e) {
+            return value;
+        }
+    }
+
+    private String fmtMillis(long millis) {
+        Date d = new Date(millis);
+        boolean thisYear = new SimpleDateFormat("yyyy", Locale.US).format(d)
+            .equals(new SimpleDateFormat("yyyy", Locale.US).format(new Date()));
+        return new SimpleDateFormat(thisYear ? "MMM d, h:mm a" : "MMM d, yyyy, h:mm a", Locale.US).format(d);
+    }
+
+    private void showCurrentPermitDetails() {
+        if (cardCurrent == null) return;
+        PermitData p = cardCurrent;
+        StringBuilder msg = new StringBuilder();
+        msg.append("Valid ").append(fmtPermitTime(p.validFrom))
+           .append(" to ").append(fmtPermitTime(p.validTo)).append("\n");
+        if (p.price != null && !p.price.isEmpty()) msg.append("Paid ").append(p.price).append("\n");
+        long since = repository.getShownSince();
+        if (p.permitNumber.equals(repository.getDisplayPermitNumber()) && since > 0) {
+            msg.append("\nOn the display since ").append(fmtMillis(since));
+        } else if (!p.permitNumber.equals(repository.getDisplayPermitNumber())) {
+            msg.append("\nNot on the display yet");
+        }
+        new AlertDialog.Builder(requireContext())
+            .setTitle(p.permitNumber)
+            .setMessage(msg.toString().trim())
+            .setPositiveButton("OK", null)
+            .show();
+    }
+
+    private void showNextPermitDetails() {
+        StringBuilder msg = new StringBuilder();
+        String title;
+        if (cardNext != null) {
+            PermitData p = cardNext;
+            title = p.permitNumber;
+            msg.append("Starts ").append(fmtPermitTime(p.validFrom)).append("\n");
+            if (p.price != null && !p.price.isEmpty()) msg.append("Paid ").append(p.price).append("\n");
+            msg.append("\n").append(p.permitNumber.equals(repository.getDisplayCachedPermitNumber())
+                ? "Stored on the display. It switches over by itself."
+                : "Bought. The display picks it up at its next check-in.");
+        } else {
+            title = "Next permit";
+            PermitData base = cardEstimateBase;
+            if (base != null && base.nextBuy != null && !base.nextBuy.isEmpty()) {
+                msg.append("Buys automatically ").append(fmtPermitTime(base.nextBuy)).append(".");
+            } else if (base != null && Boolean.FALSE.equals(base.autobuyer)) {
+                msg.append("The autobuyer is off. Buy it on the site.");
+            } else {
+                msg.append("Not bought yet.");
+            }
+        }
+        new AlertDialog.Builder(requireContext())
+            .setTitle(title)
+            .setMessage(msg.toString().trim())
+            .setPositiveButton("OK", null)
+            .show();
     }
 
     private void setScheduledBadge(String text, int background) {
