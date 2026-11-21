@@ -27,6 +27,26 @@ public class SamsungBatteryHelper {
         return intent;
     }
 
+    // Android 11+ pauses apps you haven't opened for ~3 months and revokes their permissions
+    // (Bluetooth included). This app works in the background for months without being opened.
+    public static boolean isUnusedAppPauseDisabled(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return true;
+        return context.getPackageManager().isAutoRevokeWhitelisted();
+    }
+
+    // Samsung renames the setting and splits it into several switches
+    public static String getUnusedAppPauseInstruction() {
+        return isSamsungDevice()
+            ? "Turn off everything under 'Manage app if unused' on the next screen."
+            : "Turn off 'Pause app activity if unused' on the next screen.";
+    }
+
+    public static Intent getUnusedAppPauseIntent(Context context) {
+        Intent intent = new Intent(Intent.ACTION_AUTO_REVOKE_PERMISSIONS);
+        intent.setData(Uri.parse("package:" + context.getPackageName()));
+        return intent;
+    }
+
     public static Intent getSamsungBatterySettingsIntent() {
         // Samsung-specific device care battery settings
         Intent intent = new Intent();

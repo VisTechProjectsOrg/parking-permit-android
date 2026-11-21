@@ -564,9 +564,27 @@ public class BleStatusFragment extends Fragment {
             btnBattery.setVisibility(View.VISIBLE);
             btnBattery.setText(SamsungBatteryHelper.isSamsungDevice()
                 ? "Fix Battery Settings" : "Disable Battery Optimization");
+        } else if (!SamsungBatteryHelper.isUnusedAppPauseDisabled(requireContext())) {
+            btnBattery.setVisibility(View.VISIBLE);
+            btnBattery.setText("Keep Running When Not Opened");
         } else {
             btnBattery.setVisibility(View.GONE);
         }
+    }
+
+    private void openUnusedAppPauseSettings() {
+        new AlertDialog.Builder(requireContext())
+            .setTitle("Keep Running")
+            .setMessage(SamsungBatteryHelper.getUnusedAppPauseInstruction())
+            .setPositiveButton("Open Settings", (d, w) -> {
+                try {
+                    startActivity(SamsungBatteryHelper.getUnusedAppPauseIntent(requireContext()));
+                } catch (Exception e) {
+                    startActivity(SamsungBatteryHelper.getAppInfoIntent(requireContext()));
+                }
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
     }
 
     private double[] getPriceChangeValue(String currentPrice, String previousPrice) {
@@ -584,6 +602,11 @@ public class BleStatusFragment extends Fragment {
     }
 
     private void openBatterySettings() {
+        if (SamsungBatteryHelper.isBatteryOptimizationDisabled(requireContext())
+                && !SamsungBatteryHelper.isUnusedAppPauseDisabled(requireContext())) {
+            openUnusedAppPauseSettings();
+            return;
+        }
         if (SamsungBatteryHelper.isSamsungDevice()) {
             new AlertDialog.Builder(requireContext())
                 .setTitle("Samsung Battery Settings")

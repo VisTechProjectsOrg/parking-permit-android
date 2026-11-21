@@ -96,6 +96,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void checkBatteryOptimizationFirstLaunch() {
         if (SamsungBatteryHelper.isBatteryOptimizationDisabled(this)) {
+            checkUnusedAppPause();
             return;
         }
 
@@ -109,6 +110,26 @@ public class MainActivity extends AppCompatActivity {
                 } catch (Exception e) {
                     Log.e(TAG, "Could not request battery optimization exemption", e);
                     showBatterySettingsDialog();
+                }
+            })
+            .setNegativeButton("Later", null)
+            .show();
+    }
+
+    private void checkUnusedAppPause() {
+        if (SamsungBatteryHelper.isUnusedAppPauseDisabled(this)) {
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+            .setTitle("Keep Running")
+            .setMessage("The display syncs without you opening this app. "
+                + SamsungBatteryHelper.getUnusedAppPauseInstruction())
+            .setPositiveButton("Continue", (d, w) -> {
+                try {
+                    startActivity(SamsungBatteryHelper.getUnusedAppPauseIntent(this));
+                } catch (Exception e) {
+                    startActivity(SamsungBatteryHelper.getAppInfoIntent(this));
                 }
             })
             .setNegativeButton("Later", null)
