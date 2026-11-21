@@ -428,7 +428,7 @@ public class PermitRepository {
         return 0;
     }
 
-    // Days left from the drain since the last charge, or -1 until there are 2+ days of data
+    // Days left as of now, from the drain since the last charge, or -1 until there are 2+ days of data
     public int estimateBatteryDaysLeft() {
         int baseMv = prefs.getInt(dk(KEY_BATTERY_BASE_MV), 0);
         long baseTime = prefs.getLong(dk(KEY_BATTERY_BASE_TIME), 0);
@@ -438,7 +438,10 @@ public class PermitRepository {
         double usedPct = batteryPercent(baseMv) - batteryPercent(mv);
         if (usedPct <= 0) return -1;
         double days = (t - baseTime) / (24.0 * 3600 * 1000);
-        return (int) (batteryPercent(mv) / (usedPct / days));
+        double leftAtReading = batteryPercent(mv) / (usedPct / days);
+        // Count down from the reading: with no check-in for a while, the battery kept draining
+        double sinceReading = Math.max(0, System.currentTimeMillis() - t) / (24.0 * 3600 * 1000);
+        return (int) Math.max(0, leftAtReading - sinceReading);
     }
 
     // Highest low-battery alert sent since the last charge: 0 none, 1-2 normal, 3 urgent.
