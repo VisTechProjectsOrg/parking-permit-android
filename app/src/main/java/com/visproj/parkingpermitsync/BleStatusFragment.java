@@ -684,7 +684,9 @@ public class BleStatusFragment extends Fragment {
             msg.append("Battery: ").append(pct).append("%");
             if (isDisplayCharging(mv)) msg.append(", charging");
             msg.append("\n");
-            if (days > 60) msg.append("About ").append(days / 30).append(" months left\n");
+            // Coarser as it grows, so a reading's noise doesn't make the number jump around
+            if (days > 60) msg.append("About ").append(Math.round(days / 30.0)).append(" months left\n");
+            else if (days > 14) msg.append("About ").append(Math.round(days / 7.0)).append(" weeks left\n");
             else if (days >= 0) msg.append("About ").append(days).append(days == 1 ? " day left\n" : " days left\n");
             msg.append(String.format(Locale.US, "%.2f V, read %s\n\n", mv / 1000.0,
                 TimeUtils.getRelativeTime(repository.getDisplayBatteryTime()).toLowerCase(Locale.US)));

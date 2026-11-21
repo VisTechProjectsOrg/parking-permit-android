@@ -30,6 +30,7 @@ public class PermitRepository {
     private static final String KEY_BATTERY_LOW_NOTIFIED = "display_battery_low_notified";  // pre-levels
     private static final String KEY_BATTERY_ALERT_LEVEL = "display_battery_alert_level";
     private static final String KEY_CHARGE_COUNT = "display_charge_count";
+    private static final String KEY_BATTERY_SMOOTH_MV = "display_battery_smooth_mv";
     private static final String KEY_LAST_CHARGED = "display_last_charged";
     private static final String KEY_FW_VERSION = "display_fw_version";
     private static final String KEY_BOOT_COUNT = "display_boot_count";
@@ -155,7 +156,8 @@ public class PermitRepository {
                 KEY_DISPLAY_PERMIT, KEY_DISPLAY_FLIPPED, KEY_DISPLAY_CACHED_PERMIT, KEY_SHOWN_SINCE,
                 KEY_SHOWN_REPORTED, KEY_BATTERY_MV, KEY_BATTERY_TIME, KEY_BATTERY_BASE_MV,
                 KEY_BATTERY_BASE_TIME, KEY_BATTERY_LOW_NOTIFIED, KEY_BATTERY_ALERT_LEVEL,
-                KEY_CHARGE_COUNT, KEY_LAST_CHARGED, KEY_FW_VERSION, KEY_BOOT_COUNT, KEY_RESET_REASON}) {
+                KEY_CHARGE_COUNT, KEY_LAST_CHARGED, KEY_FW_VERSION, KEY_BOOT_COUNT, KEY_RESET_REASON,
+                KEY_BATTERY_SMOOTH_MV}) {
             e.remove(gone.keyPrefix + key);
         }
         e.apply();
@@ -347,6 +349,12 @@ public class PermitRepository {
                 }
             }
             e.putInt(dk(KEY_BATTERY_MV), batteryMv).putLong(dk(KEY_BATTERY_TIME), now);
+            // Running average for the days-left estimate (about the last 2 days of check-ins), so
+            // one noisy reading doesn't swing it; starts over at a charge
+            int smooth = prefs.getInt(dk(KEY_BATTERY_SMOOTH_MV), 0);
+            boolean charged = lastMv == 0 || batteryMv > lastMv + 100;
+            e.putInt(dk(KEY_BATTERY_SMOOTH_MV), charged || smooth == 0
+                ? batteryMv : Math.round(smooth * 0.75f + batteryMv * 0.25f));
         }
         e.apply();
         return chargedFrom;
@@ -432,11 +440,12 @@ public class PermitRepository {
     public int estimateBatteryDaysLeft() {
         int baseMv = prefs.getInt(dk(KEY_BATTERY_BASE_MV), 0);
         long baseTime = prefs.getLong(dk(KEY_BATTERY_BASE_TIME), 0);
-        int mv = getDisplayBatteryMv();
+        int mv = prefs.getInt(dk(KEY_BATTERY_SMOOTH_MV), getDisplayBatteryMv());
         long t = getDisplayBatteryTime();
         if (baseMv == 0 || t - baseTime < 2L * 24 * 3600 * 1000) return -1;
         double usedPct = batteryPercent(baseMv) - batteryPercent(mv);
-        if (usedPct <= 0) return -1;
+        // Under 5% used, a reading's normal noise swings the rate several-fold: no estimate yet
+        if (usedPct < 5) return -1;
         double days = (t - baseTime) / (24.0 * 3600 * 1000);
         double leftAtReading = batteryPercent(mv) / (usedPct / days);
         // Count down from the reading: with no check-in for a while, the battery kept draining
