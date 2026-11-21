@@ -115,6 +115,14 @@ public class WebViewFragment extends Fragment {
         }
     }
 
+    // Save cookies now (the site's "keep me logged in" key), not on WebView's own schedule,
+    // so they survive Android closing the app right after a login
+    @Override
+    public void onPause() {
+        super.onPause();
+        android.webkit.CookieManager.getInstance().flush();
+    }
+
     public void loadUrl(String url) {
         if (webView != null) {
             webView.loadUrl(url);
