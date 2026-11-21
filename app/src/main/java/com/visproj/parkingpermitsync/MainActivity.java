@@ -299,6 +299,9 @@ public class MainActivity extends AppCompatActivity {
         } else if (id == R.id.action_add_display) {
             startActivity(new Intent(this, SetupActivity.class).putExtra(SetupActivity.EXTRA_ADD_DISPLAY, true));
             return true;
+        } else if (id == R.id.action_activity_log) {
+            openActivityLog();
+            return true;
         } else if (id == R.id.action_email_settings) {
             openEmailSettings();
             return true;
@@ -429,6 +432,32 @@ public class MainActivity extends AppCompatActivity {
             .setNegativeButton("Cancel", null)
             .show();
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(0xFFF44336);
+    }
+
+    // Newest first; Share sends the whole log as text (with full dates)
+    private void openActivityLog() {
+        List<String> lines = ActivityLog.read(this, false);
+        TextView text = new TextView(this);
+        text.setText(lines.isEmpty() ? "Nothing logged yet." : String.join("\n", lines));
+        text.setTextSize(12);
+        text.setTypeface(android.graphics.Typeface.MONOSPACE);
+        text.setTextIsSelectable(true);
+        text.setPadding(dp(20), dp(8), dp(20), dp(8));
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.addView(text);
+
+        new AlertDialog.Builder(this)
+            .setTitle("Activity log")
+            .setView(scroll)
+            .setPositiveButton("Share", (d, w) -> {
+                Intent send = new Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.app_name) + " activity log")
+                    .putExtra(Intent.EXTRA_TEXT, String.join("\n", ActivityLog.read(this, true)));
+                startActivity(Intent.createChooser(send, "Share activity log"));
+            })
+            .setNegativeButton("Close", null)
+            .show();
     }
 
     // Where the permit comes from: the feed URL and an optional access token

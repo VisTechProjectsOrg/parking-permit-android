@@ -685,6 +685,19 @@ public class BleStatusFragment extends Fragment {
         msg.append("Permit checked: ")
             .append(TimeUtils.getRelativeTime(repository.getLastSyncTime()).toLowerCase(Locale.US));
 
+        // Dev info: charges counted by the phone, the rest reported by the display (fw 4+)
+        int charges = repository.getChargeCount();
+        long lastCharged = repository.getLastCharged();
+        int fw = repository.getFirmwareVersion();
+        int boots = repository.getBootCount();
+        msg.append("\n\nCharges: ").append(charges);
+        if (lastCharged > 0) msg.append(", last ").append(fmtMillis(lastCharged));
+        if (fw > 0) msg.append("\nFirmware ").append(fw);
+        if (boots >= 0) {
+            msg.append("\nRestarts: ").append(boots).append(", last: ")
+                .append(PermitRepository.resetReasonText(repository.getResetReason()));
+        }
+
         PermitRepository.DisplayInfo selected = repository.getSelectedDisplay();
         new AlertDialog.Builder(requireContext())
             .setTitle(selected != null ? selected.name : "Display")

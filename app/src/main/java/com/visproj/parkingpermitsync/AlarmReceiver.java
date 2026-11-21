@@ -54,6 +54,7 @@ public class AlarmReceiver extends BroadcastReceiver {
 
     private void handleSync(Context context) {
         Log.d(TAG, "3 AM sync triggered");
+        ActivityLog.log(context, "Scheduled 3 AM permit check");
 
         // Reschedule first so a crash below can't end the daily chain
         scheduleAlarm(context, SYNC_HOUR, REQUEST_SYNC, TYPE_SYNC);
@@ -102,6 +103,7 @@ public class AlarmReceiver extends BroadcastReceiver {
             String coverageMsg = PermitData.coverageMessage(latest.getCoverage());
             if (coverageMsg != null) {
                 showCoverageNotification(context, latest, coverageMsg);
+                ActivityLog.log(context, "Alert: " + coverageMsg);
             }
         }
 
@@ -133,6 +135,8 @@ public class AlarmReceiver extends BroadcastReceiver {
         }
         if (!quiet.isEmpty()) {
             showCheckinNotification(context, oldestCheckin, several ? quiet : null);
+            ActivityLog.log(context, "Alert: " + joinNames(quiet) + " hasn't checked in for "
+                + alertDays + (alertDays == 1 ? " day" : " days"));
         }
 
         if (!repo.isRemindersEnabled()) {
@@ -163,6 +167,8 @@ public class AlarmReceiver extends BroadcastReceiver {
         Log.d(TAG, "Reminder: display out of sync for " + daysSinceNew + " days, escalated=" + escalate);
 
         showReminderNotification(context, permit, daysSinceNew, escalate, several ? behind : null);
+        ActivityLog.log(context, "Reminder: " + joinNames(behind) + " doesn't have permit "
+            + permit.permitNumber + " yet" + (escalate ? " (urgent)" : ""));
     }
 
     // "Driveway and Garage", "A, B and C"

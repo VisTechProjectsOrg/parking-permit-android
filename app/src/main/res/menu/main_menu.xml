@@ -23,6 +23,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_activity_log"
+        android:title="Activity log"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_email_settings"
         android:title="Email Settings"
         app:showAsAction="never" />

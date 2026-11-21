@@ -27,6 +27,11 @@ public class PermitRepository {
     private static final String KEY_BATTERY_BASE_TIME = "display_battery_base_time";
     private static final String KEY_BATTERY_LOW_NOTIFIED = "display_battery_low_notified";  // pre-levels
     private static final String KEY_BATTERY_ALERT_LEVEL = "display_battery_alert_level";
+    private static final String KEY_CHARGE_COUNT = "display_charge_count";
+    private static final String KEY_LAST_CHARGED = "display_last_charged";
+    private static final String KEY_FW_VERSION = "display_fw_version";
+    private static final String KEY_BOOT_COUNT = "display_boot_count";
+    private static final String KEY_RESET_REASON = "display_reset_reason";
 
     private static final String KEY_DISPLAYS = "displays";
     private static final String KEY_SELECTED_DISPLAY = "selected_display";
@@ -147,7 +152,8 @@ public class PermitRepository {
         for (String key : new String[]{KEY_LAST_DISPLAY_SYNC, KEY_DISPLAY_PERMIT_NUMBER,
                 KEY_DISPLAY_PERMIT, KEY_DISPLAY_FLIPPED, KEY_DISPLAY_CACHED_PERMIT, KEY_SHOWN_SINCE,
                 KEY_SHOWN_REPORTED, KEY_BATTERY_MV, KEY_BATTERY_TIME, KEY_BATTERY_BASE_MV,
-                KEY_BATTERY_BASE_TIME, KEY_BATTERY_LOW_NOTIFIED, KEY_BATTERY_ALERT_LEVEL}) {
+                KEY_BATTERY_BASE_TIME, KEY_BATTERY_LOW_NOTIFIED, KEY_BATTERY_ALERT_LEVEL,
+                KEY_CHARGE_COUNT, KEY_LAST_CHARGED, KEY_FW_VERSION, KEY_BOOT_COUNT, KEY_RESET_REASON}) {
             e.remove(gone.keyPrefix + key);
         }
         e.apply();
@@ -300,9 +306,12 @@ public class PermitRepository {
         return displayPermit == null || !permit.permitNumber.equals(displayPermit);
     }
 
-    // ----- Status reported by the battery display after each sync: "shown,cached,mv,fw" -----
+    // ----- Status reported by the battery display after each sync -----
+    // "shown,cached,mv,fw[,missNotFound,missFailed,resetReason,boots]" (the last four: fw 4+)
 
-    public void saveDisplayStatus(String shown, String cached, int batteryMv) {
+    // Returns the voltage it was charged up from, or 0 if this reading isn't a charge
+    public int saveDisplayStatus(String shown, String cached, int batteryMv) {
+        int chargedFrom = 0;
         SharedPreferences.Editor e = prefs.edit();
         // First report of a new permit on screen = when it went on the display
         // (own key: the permit read already updates the display permit number before this)
@@ -329,10 +338,59 @@ public class PermitRepository {
             if (lastMv == 0 || batteryMv > lastMv + 100) {
                 e.putInt(dk(KEY_BATTERY_BASE_MV), batteryMv).putLong(dk(KEY_BATTERY_BASE_TIME), now);
                 e.remove(dk(KEY_BATTERY_LOW_NOTIFIED)).remove(dk(KEY_BATTERY_ALERT_LEVEL));
+                if (lastMv != 0) {
+                    chargedFrom = lastMv;
+                    e.putInt(dk(KEY_CHARGE_COUNT), prefs.getInt(dk(KEY_CHARGE_COUNT), 0) + 1)
+                        .putLong(dk(KEY_LAST_CHARGED), now);
+                }
             }
             e.putInt(dk(KEY_BATTERY_MV), batteryMv).putLong(dk(KEY_BATTERY_TIME), now);
         }
         e.apply();
+        return chargedFrom;
+    }
+
+    // Dev info from firmware 4+. Returns the previous restart count (-1 if none yet), so the
+    // caller can tell the display restarted since it last checked in.
+    public int saveDisplayDevInfo(int fw, int resetReason, int boots) {
+        int previousBoots = prefs.getInt(dk(KEY_BOOT_COUNT), -1);
+        SharedPreferences.Editor e = prefs.edit().putInt(dk(KEY_FW_VERSION), fw);
+        if (boots >= 0) e.putInt(dk(KEY_BOOT_COUNT), boots).putInt(dk(KEY_RESET_REASON), resetReason);
+        e.apply();
+        return previousBoots;
+    }
+
+    public int getFirmwareVersion() {
+        return prefs.getInt(dk(KEY_FW_VERSION), 0);
+    }
+
+    public int getBootCount() {
+        return prefs.getInt(dk(KEY_BOOT_COUNT), -1);
+    }
+
+    public int getResetReason() {
+        return prefs.getInt(dk(KEY_RESET_REASON), -1);
+    }
+
+    public int getChargeCount() {
+        return prefs.getInt(dk(KEY_CHARGE_COUNT), 0);
+    }
+
+    public long getLastCharged() {
+        return prefs.getLong(dk(KEY_LAST_CHARGED), 0);
+    }
+
+    // ESP32 reset reason codes, as the display reports them
+    public static String resetReasonText(int code) {
+        switch (code) {
+            case 1: return "power-on";
+            case 2: return "reset pin";
+            case 3: return "software restart";
+            case 4: return "crash";
+            case 5: case 6: case 7: return "watchdog (hang)";
+            case 9: return "brownout (low voltage)";
+            default: return code <= 0 ? "unknown" : "code " + code;  // 0 = USB reset, among others
+        }
     }
 
     // When the permit now on the display was first reported there, or 0 if unknown

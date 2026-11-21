@@ -100,6 +100,8 @@ public class BleGattService extends Service {
     public void onCreate() {
         super.onCreate();
         Log.d(TAG, "Service created");
+        // A fresh start: first launch, after a phone restart, or after Android stopped it
+        ActivityLog.log(this, "Background service started");
 
         repository = new PermitRepository(this);
         bluetoothManager = (BluetoothManager) getSystemService(BLUETOOTH_SERVICE);
@@ -129,9 +131,13 @@ public class BleGattService extends Service {
             int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
             if (state == BluetoothAdapter.STATE_ON) {
                 Log.d(TAG, "Bluetooth on, restarting BLE server");
+                ActivityLog.log(context, "Bluetooth turned on");
                 startBleServer();
             } else if (state == BluetoothAdapter.STATE_TURNING_OFF || state == BluetoothAdapter.STATE_OFF) {
                 Log.d(TAG, "Bluetooth off, tearing down BLE server");
+                if (state == BluetoothAdapter.STATE_TURNING_OFF) {
+                    ActivityLog.log(context, "Bluetooth turned off: the display can't sync");
+                }
                 stopBleServer();
             }
         }
@@ -305,6 +311,7 @@ public class BleGattService extends Service {
         public void onStartFailure(int errorCode) {
             isAdvertising = errorCode == ADVERTISE_FAILED_ALREADY_STARTED;
             Log.e(TAG, "BLE advertising failed: " + errorCode);
+            if (!isAdvertising) ActivityLog.log(BleGattService.this, "Bluetooth advertising failed (error " + errorCode + ")");
         }
     };
 
@@ -346,6 +353,7 @@ public class BleGattService extends Service {
                     if (display.unpair) {
                         json = "{\"unpair\":true}";
                         Log.d(TAG, "Telling forgotten display " + display.id + " to unpair");
+                        ActivityLog.log(BleGattService.this, display.name + " was forgotten: told it to unpair");
                         repository.removeDisplay(display.id);
                     } else {
                         json = permit != null ? permit.toDisplayJson(displayRepo.isDisplayFlipped()) : "{}";
@@ -395,6 +403,12 @@ public class BleGattService extends Service {
                     // Reset sync type after handling
                     session.syncType = SYNC_TYPE_AUTO;
                     sendBroadcast(ACTION_PERMIT_READ, isNewPermit);
+                    String why = syncType == SYNC_TYPE_FORCE ? "long press"
+                        : syncType == SYNC_TYPE_MANUAL ? "button" : "scheduled or power-on";
+                    ActivityLog.log(BleGattService.this, display.name + " synced (" + why + "): sent "
+                        + permit.permitNumber + (permit.next != null && permit.next.isComplete()
+                            ? " + next " + permit.next.permitNumber : "")
+                        + (isNewPermit ? ", new permit" : ""));
                 }
 
                 try {
@@ -609,7 +623,9 @@ public class BleGattService extends Service {
         } catch (NumberFormatException e) {
             return;
         }
-        displayRepo.saveDisplayStatus(parts[0].trim(), parts[1].trim(), mv);
+        String shown = parts[0].trim(), cached = parts[1].trim();
+        int chargedFrom = displayRepo.saveDisplayStatus(shown, cached, mv);
+        logCheckIn(display, displayRepo, parts, shown, cached, mv, chargedFrom);
         Intent statusIntent = new Intent(ACTION_DISPLAY_STATUS);
         // null for older firmware, which isn't registered
         if (repository.findDisplay(display.id) != null) statusIntent.putExtra(EXTRA_DISPLAY_ID, display.id);
@@ -618,6 +634,45 @@ public class BleGattService extends Service {
         getSystemService(NotificationManager.class).cancel(AlarmReceiver.NOTIFICATION_CHECKIN);
 
         if (mv > 0) checkBatteryAlert(display, displayRepo, mv);
+    }
+
+    // One line per check-in, plus charges, missed check-ins and restarts the display reported
+    private void logCheckIn(PermitRepository.DisplayInfo display, PermitRepository displayRepo, String[] parts,
+                            String shown, String cached, int mv, int chargedFrom) {
+        int fw = intAt(parts, 3, 0);
+        int missNotFound = intAt(parts, 4, 0), missFailed = intAt(parts, 5, 0);
+        int resetReason = intAt(parts, 6, -1), boots = intAt(parts, 7, -1);
+        int previousBoots = displayRepo.saveDisplayDevInfo(fw, resetReason, boots);
+
+        StringBuilder line = new StringBuilder(display.name).append(" checked in: ");
+        line.append(String.format(java.util.Locale.US, "%.2f V (%d%%)", mv / 1000.0, PermitRepository.batteryPercent(mv)));
+        line.append(", showing ").append(shown.isEmpty() ? "nothing" : shown);
+        if (!cached.isEmpty()) line.append(", holding ").append(cached);
+        line.append(", fw ").append(fw);
+        ActivityLog.log(this, line.toString());
+
+        if (missNotFound + missFailed > 0) {
+            int total = missNotFound + missFailed;
+            ActivityLog.log(this, display.name + " missed " + total + (total == 1 ? " check-in" : " check-ins")
+                + " before this (phone not found " + missNotFound + ", couldn't connect " + missFailed + ")");
+        }
+        if (boots >= 0 && previousBoots >= 0 && boots > previousBoots) {
+            ActivityLog.log(this, display.name + " restarted: " + PermitRepository.resetReasonText(resetReason)
+                + " (" + boots + " restarts in total)");
+        }
+        if (chargedFrom > 0) {
+            ActivityLog.log(this, String.format(java.util.Locale.US, "%s was charged: %.2f V to %.2f V",
+                display.name, chargedFrom / 1000.0, mv / 1000.0));
+        }
+    }
+
+    private static int intAt(String[] parts, int i, int fallback) {
+        if (i >= parts.length) return fallback;
+        try {
+            return Integer.parseInt(parts[i].trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     // Up to three low-battery alerts per discharge (see batteryAlertLevel), each replacing the
@@ -651,6 +706,7 @@ public class BleGattService extends Service {
             .build();
         // One per display, so two low units don't replace each other's notice
         getSystemService(NotificationManager.class).notify(BATTERY_NOTIFICATION_ID + display.id.hashCode(), n);
+        ActivityLog.log(this, "Low battery alert " + level + " of 3: " + text);
     }
 
     private double parsePrice(String price) throws NumberFormatException {
@@ -706,6 +762,7 @@ public class BleGattService extends Service {
     @Override
     public void onDestroy() {
         Log.d(TAG, "Service destroyed");
+        ActivityLog.log(this, "Background service stopped");
         isRunning = false;
         unregisterReceiver(bluetoothStateReceiver);
         stopBleServer();

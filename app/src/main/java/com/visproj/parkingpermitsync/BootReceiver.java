@@ -19,10 +19,22 @@ public class BootReceiver extends BroadcastReceiver {
         if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())
                 || Intent.ACTION_MY_PACKAGE_REPLACED.equals(intent.getAction())) {
             Log.d(TAG, "Boot completed or app updated: " + intent.getAction());
+            // Android also re-sends BOOT_COMPLETED to an app that was force-stopped, once it's
+            // opened again, so only call it a phone restart if the phone just came up
+            String what;
+            if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(intent.getAction())) {
+                what = "App updated";
+            } else if (android.os.SystemClock.elapsedRealtime() < 10 * 60 * 1000) {
+                what = "Phone restarted";
+            } else {
+                what = "App started again after being stopped";
+            }
+            ActivityLog.log(context, what);
 
             // Check if Bluetooth permissions are granted before starting service
             if (!hasBluetoothPermissions(context)) {
                 Log.d(TAG, "Bluetooth permissions not granted, skipping service start");
+                ActivityLog.log(context, "Not starting: Bluetooth permission missing");
                 return;
             }
 

@@ -72,6 +72,9 @@ public class PermitSyncTask {
 
                     repository.savePermit(newPermit);
                     Log.d(TAG, "Synced permit: " + newPermit.permitNumber + " (new=" + isNew + ")");
+                    ActivityLog.log(context, "Permit check: " + newPermit.permitNumber
+                        + (newPermit.next != null && newPermit.next.isValid() ? ", next " + newPermit.next.permitNumber : "")
+                        + (isNew ? " (new)" : ""));
 
                     notifySuccess(callback, newPermit, isNew);
                 }
@@ -89,6 +92,7 @@ public class PermitSyncTask {
     }
 
     private void notifyError(SyncCallback callback, String error) {
+        ActivityLog.log(context, "Permit check failed: " + error);
         if (callback != null) {
             mainHandler.post(() -> callback.onError(error));
         }
