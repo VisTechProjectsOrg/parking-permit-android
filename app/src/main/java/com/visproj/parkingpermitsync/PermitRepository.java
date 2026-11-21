@@ -31,6 +31,7 @@ public class PermitRepository {
     private static final String KEY_BATTERY_ALERT_LEVEL = "display_battery_alert_level";
     private static final String KEY_CHARGE_COUNT = "display_charge_count";
     private static final String KEY_BATTERY_SMOOTH_MV = "display_battery_smooth_mv";
+    private static final String KEY_DISPLAY_CHARGING = "display_charging";
     private static final String KEY_LAST_CHARGED = "display_last_charged";
     private static final String KEY_FW_VERSION = "display_fw_version";
     private static final String KEY_BOOT_COUNT = "display_boot_count";
@@ -157,7 +158,7 @@ public class PermitRepository {
                 KEY_SHOWN_REPORTED, KEY_BATTERY_MV, KEY_BATTERY_TIME, KEY_BATTERY_BASE_MV,
                 KEY_BATTERY_BASE_TIME, KEY_BATTERY_LOW_NOTIFIED, KEY_BATTERY_ALERT_LEVEL,
                 KEY_CHARGE_COUNT, KEY_LAST_CHARGED, KEY_FW_VERSION, KEY_BOOT_COUNT, KEY_RESET_REASON,
-                KEY_BATTERY_SMOOTH_MV}) {
+                KEY_BATTERY_SMOOTH_MV, KEY_DISPLAY_CHARGING}) {
             e.remove(gone.keyPrefix + key);
         }
         e.apply();
@@ -368,6 +369,17 @@ public class PermitRepository {
         if (boots >= 0) e.putInt(dk(KEY_BOOT_COUNT), boots).putInt(dk(KEY_RESET_REASON), resetReason);
         e.apply();
         return previousBoots;
+    }
+
+    // Charging as the display judges it (firmware 6+). Returns the previous value, for logging.
+    public boolean setDisplayCharging(boolean charging) {
+        boolean was = prefs.getBoolean(dk(KEY_DISPLAY_CHARGING), false);
+        prefs.edit().putBoolean(dk(KEY_DISPLAY_CHARGING), charging).apply();
+        return was;
+    }
+
+    public boolean isDisplayChargingReported() {
+        return prefs.getBoolean(dk(KEY_DISPLAY_CHARGING), false);
     }
 
     public int getFirmwareVersion() {

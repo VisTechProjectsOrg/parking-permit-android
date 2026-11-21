@@ -650,6 +650,7 @@ public class BleStatusFragment extends Fragment {
     // reported in the last 30 minutes is the best sign that it's on USB right now
     private static final int CHARGING_MV = 4150;
     private static final long CHARGING_FRESH_MS = 30 * 60 * 1000;
+    private static final long CHARGING_FLAG_FRESH_MS = 15 * 60 * 1000;  // 3 missed 5-min polls
 
     private void updateSyncTimes() {
         if (!isAdded() || repository == null) return;
@@ -670,9 +671,14 @@ public class BleStatusFragment extends Fragment {
         }
     }
 
+    // Firmware 6+ reports whether it's charging and syncs every 5 min while it is, so trust that
+    // flag while it's recent; older firmware only gives the voltage (4.15V+ just after a reading)
     private boolean isDisplayCharging(int mv) {
-        return mv >= CHARGING_MV
-            && System.currentTimeMillis() - repository.getDisplayBatteryTime() < CHARGING_FRESH_MS;
+        long age = System.currentTimeMillis() - repository.getDisplayBatteryTime();
+        if (repository.getFirmwareVersion() >= 6) {
+            return repository.isDisplayChargingReported() && age < CHARGING_FLAG_FRESH_MS;
+        }
+        return mv >= CHARGING_MV && age < CHARGING_FRESH_MS;
     }
 
     private void showDisplayDetails() {
