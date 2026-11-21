@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Toolbar logo: the launcher icon (blue tile, screen, P) as one small drawable.
-     Same paths as ic_launcher_foreground, shifted by the 18-unit adaptive icon margin. -->
+     Same paths as ic_launcher_foreground, shifted by the 18-unit adaptive icon margin.
+     The canvas is wider than the tile: the empty right side is the gap before the title
+     (Toolbar ignores titleMarginStart next to a logo). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="30dp"
+    android:width="40dp"
     android:height="30dp"
-    android:viewportWidth="72"
+    android:viewportWidth="96"
     android:viewportHeight="72">
 
     <path

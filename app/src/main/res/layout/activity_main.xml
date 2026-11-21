@@ -13,7 +13,6 @@
         android:background="#2a3142"
         app:title="@string/app_name"
         app:logo="@drawable/ic_logo"
-        app:titleMarginStart="14dp"
         app:titleTextColor="#e2e8f0"
         app:popupTheme="@style/ThemeOverlay.AppCompat.Dark" />
 
