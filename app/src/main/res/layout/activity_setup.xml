@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#1a1f2e"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/tvStep"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="13sp"
+        android:textColor="#8892a6"
+        android:layout_marginBottom="8dp" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- Step 1: welcome -->
+        <LinearLayout
+            android:id="@+id/stepWelcome"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Parking Permit Sync"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                android:textColor="#e2e8f0"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Keeps your e-ink parking display showing your current permit."
+                android:textSize="16sp"
+                android:textColor="#8892a6" />
+
+        </LinearLayout>
+
+        <!-- Step 2: permit feed -->
+        <LinearLayout
+            android:id="@+id/stepAccount"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Your permit"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="#e2e8f0"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Where the app gets your permit."
+                android:textSize="15sp"
+                android:textColor="#8892a6"
+                android:layout_marginBottom="16dp" />
+
+            <EditText
+                android:id="@+id/etFeedUrl"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Permit feed URL"
+                android:inputType="textUri"
+                android:singleLine="true"
+                android:textColor="#e2e8f0"
+                android:textColorHint="#8892a6" />
+
+            <EditText
+                android:id="@+id/etFeedToken"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Access token (optional)"
+                android:inputType="textPassword"
+                android:singleLine="true"
+                android:textColor="#e2e8f0"
+                android:textColorHint="#8892a6" />
+
+            <TextView
+                android:id="@+id/tvAccountResult"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textSize="15sp"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+        <!-- Step 3: permissions (rows added in code) -->
+        <LinearLayout
+            android:id="@+id/stepPermissions"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Permissions"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="#e2e8f0"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="So the display stays up to date without opening the app."
+                android:textSize="15sp"
+                android:textColor="#8892a6"
+                android:layout_marginBottom="16dp" />
+
+            <LinearLayout
+                android:id="@+id/permissionRows"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+        </LinearLayout>
+
+        <!-- Step 4: pair -->
+        <LinearLayout
+            android:id="@+id/stepPair"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pair your display"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="#e2e8f0"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Press the button on your display with this phone nearby."
+                android:textSize="15sp"
+                android:textColor="#8892a6"
+                android:layout_marginBottom="24dp" />
+
+            <LinearLayout
+                android:id="@+id/pairWaiting"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/card_background"
+                android:padding="16dp">
+
+                <ProgressBar
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="12dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Waiting for the display..."
+                    android:textSize="15sp"
+                    android:textColor="#e2e8f0" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/pairDone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card_background"
+                android:padding="16dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tvPaired"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#4caf50"
+                    android:layout_marginBottom="12dp" />
+
+                <TextView
+                    android:id="@+id/tvNameLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Name"
+                    android:textSize="13sp"
+                    android:textColor="#8892a6" />
+
+                <EditText
+                    android:id="@+id/etDisplayName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textCapWords"
+                    android:maxLength="24"
+                    android:singleLine="true"
+                    android:textColor="#e2e8f0" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <Button
+        android:id="@+id/btnNext"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="52dp"
+        android:text="Get started"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#2196f3" />
+
+    <TextView
+        android:id="@+id/btnSkip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:gravity="center"
+        android:text="Skip for now"
+        android:textSize="14sp"
+        android:textColor="#8892a6"
+        android:background="?android:attr/selectableItemBackground"
+        android:visibility="gone" />
+
+</LinearLayout>

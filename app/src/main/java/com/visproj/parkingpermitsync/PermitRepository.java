@@ -32,6 +32,7 @@ public class PermitRepository {
     private static final String KEY_OWNER_ID = "owner_id";
     private static final String KEY_FEED_URL = "feed_url";
     private static final String KEY_FEED_TOKEN = "feed_token";
+    private static final String KEY_SETUP_DONE = "setup_done";
 
     public static final String PERMIT_URL = "https://fucktorontoparking.ca/api/permit";
 
@@ -186,6 +187,16 @@ public class PermitRepository {
         byte[] out = new byte[8];
         for (int i = 0; i < 8; i++) out[i] = (byte) Integer.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
         return out;
+    }
+
+    // First-run setup finished. Installs from before setup existed (a permit or a display
+    // already saved) count as done.
+    public boolean isSetupDone() {
+        return prefs.getBoolean(KEY_SETUP_DONE, false) || getPermit() != null || !getDisplays().isEmpty();
+    }
+
+    public void setSetupDone() {
+        prefs.edit().putBoolean(KEY_SETUP_DONE, true).apply();
     }
 
     // ----- Account: where the permit comes from -----

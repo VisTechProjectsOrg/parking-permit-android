@@ -78,6 +78,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (!new PermitRepository(this).isSetupDone()) {
+            startActivity(new Intent(this, SetupActivity.class));
+            finish();
+            return;
+        }
         setContentView(R.layout.activity_main);
 
         Toolbar toolbar = findViewById(R.id.toolbar);
@@ -294,6 +299,9 @@ public class MainActivity extends AppCompatActivity {
             return true;
         } else if (id == R.id.action_notifications) {
             openNotificationSettings();
+            return true;
+        } else if (id == R.id.action_add_display) {
+            startActivity(new Intent(this, SetupActivity.class).putExtra(SetupActivity.EXTRA_ADD_DISPLAY, true));
             return true;
         } else if (id == R.id.action_email_settings) {
             openEmailSettings();

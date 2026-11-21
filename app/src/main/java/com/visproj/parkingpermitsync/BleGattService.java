@@ -48,6 +48,7 @@ public class BleGattService extends Service {
     public static final String ACTION_DEVICE_DISCONNECTED = "com.visproj.parkingpermitsync.DEVICE_DISCONNECTED";
     public static final String ACTION_PERMIT_READ = "com.visproj.parkingpermitsync.PERMIT_READ";
     public static final String ACTION_DISPLAY_STATUS = "com.visproj.parkingpermitsync.DISPLAY_STATUS";
+    public static final String EXTRA_DISPLAY_ID = "display_id";
 
     // BLE UUIDs - ESP32 will use these to find and read permit data
     // Using standard Bluetooth Base UUID format for better compatibility
@@ -604,7 +605,10 @@ public class BleGattService extends Service {
             return;
         }
         displayRepo.saveDisplayStatus(parts[0].trim(), parts[1].trim(), mv);
-        sendBroadcast(ACTION_DISPLAY_STATUS);
+        Intent statusIntent = new Intent(ACTION_DISPLAY_STATUS);
+        // null for older firmware, which isn't registered
+        if (repository.findDisplay(display.id) != null) statusIntent.putExtra(EXTRA_DISPLAY_ID, display.id);
+        LocalBroadcastManager.getInstance(this).sendBroadcast(statusIntent);
         // It's checking in again: clear any "hasn't checked in" alert
         getSystemService(NotificationManager.class).cancel(AlarmReceiver.NOTIFICATION_CHECKIN);
 
