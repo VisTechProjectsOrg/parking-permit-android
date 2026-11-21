@@ -169,7 +169,7 @@ public class BleGattService extends Service {
 
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Parking Permit Sync")
-            .setContentText("BLE server running")
+            .setContentText("Keeping your display up to date")
             .setSmallIcon(R.drawable.ic_bluetooth)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -637,9 +637,9 @@ public class BleGattService extends Service {
         // BLE service channel (low importance, silent)
         NotificationChannel serviceChannel = new NotificationChannel(
             CHANNEL_ID,
-            "BLE Service",
+            "Background sync",
             NotificationManager.IMPORTANCE_LOW);
-        serviceChannel.setDescription("Keeps BLE server running for ESP32 connection");
+        serviceChannel.setDescription("Keeps the display in sync while the app is closed");
         manager.createNotificationChannel(serviceChannel);
 
         // Permit updates channel (default importance, shows notifications)

@@ -260,8 +260,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void createNotificationChannels() {
         NotificationChannel bleChannel = new NotificationChannel(
-            "ble_service_channel", "BLE Service", NotificationManager.IMPORTANCE_LOW);
-        bleChannel.setDescription("Keeps BLE server running");
+            "ble_service_channel", "Background sync", NotificationManager.IMPORTANCE_LOW);
+        bleChannel.setDescription("Keeps the display in sync while the app is closed");
 
         NotificationChannel updateChannel = new NotificationChannel(
             "permit_updates", "Permit Updates", NotificationManager.IMPORTANCE_DEFAULT);
