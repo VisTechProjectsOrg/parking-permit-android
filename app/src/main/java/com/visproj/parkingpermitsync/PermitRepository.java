@@ -371,6 +371,22 @@ public class PermitRepository {
         return previousBoots;
     }
 
+    // The display reported its charge ended (firmware 6+ syncs every 5 min while charging, so the
+    // voltage never jumps 100 mV between two reports and saveDisplayStatus can't spot it): count
+    // the charge and restart the drain estimate and the low-battery alerts from here.
+    public void recordChargeEnded(int batteryMv) {
+        long now = System.currentTimeMillis();
+        SharedPreferences.Editor e = prefs.edit()
+            .putInt(dk(KEY_CHARGE_COUNT), prefs.getInt(dk(KEY_CHARGE_COUNT), 0) + 1)
+            .putLong(dk(KEY_LAST_CHARGED), now)
+            .remove(dk(KEY_BATTERY_LOW_NOTIFIED)).remove(dk(KEY_BATTERY_ALERT_LEVEL));
+        if (batteryMv > 0) {
+            e.putInt(dk(KEY_BATTERY_BASE_MV), batteryMv).putLong(dk(KEY_BATTERY_BASE_TIME), now)
+                .putInt(dk(KEY_BATTERY_SMOOTH_MV), batteryMv);
+        }
+        e.apply();
+    }
+
     // Charging as the display judges it (firmware 6+). Returns the previous value, for logging.
     public boolean setDisplayCharging(boolean charging) {
         boolean was = prefs.getBoolean(dk(KEY_DISPLAY_CHARGING), false);
