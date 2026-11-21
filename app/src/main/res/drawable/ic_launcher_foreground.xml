@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive icon foreground: an e-ink screen with a parking P. Kept inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Bezel -->
+    <path
+        android:fillColor="#1E2633"
+        android:pathData="M32,36 H76 A5,5 0 0 1 81,41 V67 A5,5 0 0 1 76,72 H32 A5,5 0 0 1 27,67 V41 A5,5 0 0 1 32,36 Z" />
+
+    <!-- E-ink screen -->
+    <path
+        android:fillColor="#EEF1F4"
+        android:pathData="M32.5,39 H75.5 A2.5,2.5 0 0 1 78,41.5 V66.5 A2.5,2.5 0 0 1 75.5,69 H32.5 A2.5,2.5 0 0 1 30,66.5 V41.5 A2.5,2.5 0 0 1 32.5,39 Z" />
+
+    <!-- P: stem and bowl, with the counter cut out -->
+    <path
+        android:fillColor="#1976D2"
+        android:fillType="evenOdd"
+        android:pathData="M47,43 H55 A7,7 0 0 1 55,57 H52.5 V65 H47 Z M52.5,47.5 V52.5 H55 A2.5,2.5 0 0 0 55,47.5 Z" />
+
+</vector>

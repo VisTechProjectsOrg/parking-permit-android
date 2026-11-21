@@ -42,13 +42,15 @@ public class PermitSyncTask {
     public void sync(SyncCallback callback) {
         executor.execute(() -> {
             try {
-                String url = PermitRepository.PERMIT_URL;
+                String url = repository.getFeedUrl();
                 Log.d(TAG, "Syncing from: " + url);
 
-                Request request = new Request.Builder()
+                Request.Builder builder = new Request.Builder()
                     .url(url)
-                    .header("Cache-Control", "no-cache")
-                    .build();
+                    .header("Cache-Control", "no-cache");
+                String token = repository.getFeedToken();
+                if (!token.isEmpty()) builder.header("Authorization", "Bearer " + token);
+                Request request = builder.build();
 
                 try (Response response = client.newCall(request).execute()) {
                     if (!response.isSuccessful()) {
@@ -70,6 +72,9 @@ public class PermitSyncTask {
 
                     repository.savePermit(newPermit);
                     Log.d(TAG, "Synced permit: " + newPermit.permitNumber + " (new=" + isNew + ")");
+                    ActivityLog.log(context, "Permit check: " + newPermit.permitNumber
+                        + (newPermit.next != null && newPermit.next.isValid() ? ", next " + newPermit.next.permitNumber : "")
+                        + (isNew ? " (new)" : ""));
 
                     notifySuccess(callback, newPermit, isNew);
                 }
@@ -87,6 +92,7 @@ public class PermitSyncTask {
     }
 
     private void notifyError(SyncCallback callback, String error) {
+        ActivityLog.log(context, "Permit check failed: " + error);
         if (callback != null) {
             mainHandler.post(() -> callback.onError(error));
         }

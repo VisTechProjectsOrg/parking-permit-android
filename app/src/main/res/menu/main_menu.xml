@@ -8,8 +8,23 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_add_display"
+        android:title="Add a display"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_account"
+        android:title="Account"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_notifications"
         android:title="Notification Settings"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_activity_log"
+        android:title="Activity log"
         app:showAsAction="never" />
 
     <item

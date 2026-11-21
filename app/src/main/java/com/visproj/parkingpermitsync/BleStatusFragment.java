@@ -35,7 +35,6 @@ public class BleStatusFragment extends Fragment {
 
     private static final int COLOR_BLUE = 0xFF2196F3;
 
-    private TextView tvStatus;
     private TextView tvPermitNumber;
     private TextView tvPermitPrice;
     private TextView tvPermitBadge;
@@ -43,7 +42,6 @@ public class BleStatusFragment extends Fragment {
     private TextView tvPermitVehicle;
     private TextView tvConnectionStatus;
     private LinearLayout connectionCard;
-    private View statusIndicator;
     private Button btnSync;
     private Button btnBattery;
     private TextView tvSyncStatus;
@@ -62,11 +60,12 @@ public class BleStatusFragment extends Fragment {
     private TextView tvCoverageWarning;
     private BatteryView batteryView;
     private TextView tvDisplayBattery;
+    private TextView tvDisplayPicker;
+    private TextView tvBluetoothWarning;
 
     private PermitRepository repository;
     private Handler handler;
     private Runnable updateRunnable;
-    private boolean pendingBleRunning = false;
 
     private final BroadcastReceiver bleReceiver = new BroadcastReceiver() {
         @Override
@@ -125,7 +124,6 @@ public class BleStatusFragment extends Fragment {
         repository = new PermitRepository(requireContext());
         handler = new Handler(Looper.getMainLooper());
 
-        tvStatus = view.findViewById(R.id.tvStatus);
         tvPermitNumber = view.findViewById(R.id.tvPermitNumber);
         tvPermitPrice = view.findViewById(R.id.tvPermitPrice);
         tvPermitBadge = view.findViewById(R.id.tvPermitBadge);
@@ -133,7 +131,6 @@ public class BleStatusFragment extends Fragment {
         tvPermitVehicle = view.findViewById(R.id.tvPermitVehicle);
         tvConnectionStatus = view.findViewById(R.id.tvConnectionStatus);
         connectionCard = view.findViewById(R.id.connectionCard);
-        statusIndicator = view.findViewById(R.id.statusIndicator);
         btnSync = view.findViewById(R.id.btnSync);
         btnBattery = view.findViewById(R.id.btnBattery);
         tvSyncStatus = view.findViewById(R.id.tvSyncStatus);
@@ -147,6 +144,9 @@ public class BleStatusFragment extends Fragment {
         tvCoverageWarning = view.findViewById(R.id.tvCoverageWarning);
         batteryView = view.findViewById(R.id.batteryView);
         tvDisplayBattery = view.findViewById(R.id.tvDisplayBattery);
+        tvDisplayPicker = view.findViewById(R.id.tvDisplayPicker);
+        tvDisplayPicker.setOnClickListener(v -> pickDisplay());
+        tvBluetoothWarning = view.findViewById(R.id.tvBluetoothWarning);
         view.findViewById(R.id.displayBatteryGroup).setOnClickListener(v -> showDisplayDetails());
         view.findViewById(R.id.permitCard).setOnClickListener(v -> showCurrentPermitDetails());
         scheduledPermitCard.setOnClickListener(v -> showNextPermitDetails());
@@ -163,12 +163,6 @@ public class BleStatusFragment extends Fragment {
         };
 
         updateUI();
-
-        // Apply pending BLE status if it was set before view was created
-        if (pendingBleRunning) {
-            setBleRunning();
-            pendingBleRunning = false;
-        }
     }
 
     @Override
@@ -184,10 +178,6 @@ public class BleStatusFragment extends Fragment {
 
         handler.post(updateRunnable);
         updateUI();
-
-        if (BleGattService.isServiceRunning()) {
-            setBleRunning();
-        }
     }
 
     @Override
@@ -209,8 +199,7 @@ public class BleStatusFragment extends Fragment {
 
     private void syncNow() {
         setButtonEnabled(btnSync, false, COLOR_BLUE);
-        tvStatus.setText("Checking for new permit...");
-        setStatusIndicatorColor("#ff9800");
+        btnSync.setText("Checking...");
 
         PermitSyncTask syncTask = new PermitSyncTask(requireContext());
         syncTask.sync(new PermitSyncTask.SyncCallback() {
@@ -218,8 +207,7 @@ public class BleStatusFragment extends Fragment {
             public void onSuccess(PermitData permit, boolean isNew) {
                 if (!isAdded()) return;
                 setButtonEnabled(btnSync, true, COLOR_BLUE);
-                tvStatus.setText("BLE Server Running");
-                setStatusIndicatorColor("#4caf50");
+                btnSync.setText("Check for New Permit");
                 updateUI();
 
                 String msg = isNew ? "New permit found" : "Permit is up to date";
@@ -230,15 +218,10 @@ public class BleStatusFragment extends Fragment {
             public void onError(String error) {
                 if (!isAdded()) return;
                 setButtonEnabled(btnSync, true, COLOR_BLUE);
-                tvStatus.setText("Couldn't reach the site");
-                setStatusIndicatorColor("#f44336");
+                btnSync.setText("Check for New Permit");
+                Toast.makeText(requireContext(), "Couldn't reach the site: " + error, Toast.LENGTH_LONG).show();
             }
         });
-    }
-
-    private void setStatusIndicatorColor(String color) {
-        GradientDrawable drawable = (GradientDrawable) statusIndicator.getBackground();
-        drawable.setColor(android.graphics.Color.parseColor(color));
     }
 
     private void setButtonEnabled(Button button, boolean enabled, int enabledColor) {
@@ -251,17 +234,42 @@ public class BleStatusFragment extends Fragment {
         }
     }
 
+    // The service (re)started: a Bluetooth warning may be out of date
     public void setBleRunning() {
-        if (tvStatus != null && statusIndicator != null) {
-            tvStatus.setText("BLE Server Running");
-            setStatusIndicatorColor("#4caf50");
-        } else {
-            pendingBleRunning = true;
-        }
+        updateSyncTimes();
     }
 
-    private void updateUI() {
+    private void pickDisplay() {
+        java.util.List<PermitRepository.DisplayInfo> displays = repository.getActiveDisplays();
+        if (displays.size() < 2) return;
+        String[] names = new String[displays.size()];
+        int checked = 0;
+        PermitRepository.DisplayInfo selected = repository.getSelectedDisplay();
+        for (int i = 0; i < names.length; i++) {
+            names[i] = displays.get(i).name;
+            if (selected != null && displays.get(i).id.equals(selected.id)) checked = i;
+        }
+        new AlertDialog.Builder(requireContext())
+            .setTitle("Show display")
+            .setSingleChoiceItems(names, checked, (d, which) -> {
+                repository.setSelectedDisplay(displays.get(which).id);
+                d.dismiss();
+                updateUI();
+            })
+            .show();
+    }
+
+    // Public so Display Settings can refresh it after a rename or forget
+    public void updateUI() {
         if (!isAdded() || repository == null) return;
+
+        // Re-read each time: displays get added, renamed, forgotten or picked elsewhere
+        repository = new PermitRepository(requireContext());
+        java.util.List<PermitRepository.DisplayInfo> displays = repository.getActiveDisplays();
+        PermitRepository.DisplayInfo selected = repository.getSelectedDisplay();
+        String name = selected != null ? selected.name : "Display";
+        tvDisplayPicker.setText(displays.size() > 1 ? name + " ▾" : name);
+        tvDisplayPicker.setClickable(displays.size() > 1);
 
         PermitData latestPermit = repository.getPermit();
         PermitData displayPermit = repository.getDisplayPermit();
@@ -423,7 +431,7 @@ public class BleStatusFragment extends Fragment {
                 cardNext = null;
                 cardEstimateBase = latestOrCurrent(currentPermit);
                 tvScheduledNumber.setText("Pending");
-                setScheduledBadge("Not bought yet", R.drawable.badge_orange);
+                setEstimateBadge(cardEstimateBase);
                 String dateRange = outputFormat.format(nextStart) + " - " + outputFormat.format(nextEnd);
                 tvScheduledDates.setText(dateRange);
                 tvScheduledVehicle.setText(vehicleLabel(currentPermit));
@@ -520,6 +528,28 @@ public class BleStatusFragment extends Fragment {
             .show();
     }
 
+    // Not bought yet: orange only when it needs you (autobuyer off), otherwise when it buys
+    private void setEstimateBadge(PermitData base) {
+        if (base != null && Boolean.FALSE.equals(base.autobuyer)) {
+            setScheduledBadge("Not bought", R.drawable.badge_orange);
+            return;
+        }
+        String when = null;
+        if (base != null && base.nextBuy != null && !base.nextBuy.isEmpty()) {
+            try {
+                Date d = new SimpleDateFormat("MMM dd, yyyy: HH:mm", Locale.US).parse(base.nextBuy);
+                if (d != null) {
+                    SimpleDateFormat day = new SimpleDateFormat("yyyyMMdd", Locale.US);
+                    when = day.format(d).equals(day.format(new Date())) ? "today"
+                        : new SimpleDateFormat("MMM d", Locale.US).format(d);
+                }
+            } catch (ParseException e) {
+                // fall through to the generic label
+            }
+        }
+        setScheduledBadge(when != null ? "Auto-buy " + when : "Not bought yet", R.drawable.badge_grey);
+    }
+
     private void setScheduledBadge(String text, int background) {
         tvScheduledBadge.setText(text);
         tvScheduledBadge.setBackgroundResource(background);
@@ -614,6 +644,9 @@ public class BleStatusFragment extends Fragment {
         if (!isAdded() || repository == null) return;
 
         displaySyncWarning.setVisibility(repository.isDisplayOutOfSync() ? View.VISIBLE : View.GONE);
+        android.bluetooth.BluetoothAdapter bt = ((android.bluetooth.BluetoothManager)
+            requireContext().getSystemService(Context.BLUETOOTH_SERVICE)).getAdapter();
+        tvBluetoothWarning.setVisibility(bt != null && !bt.isEnabled() ? View.VISIBLE : View.GONE);
 
         int mv = repository.getDisplayBatteryMv();
         if (mv > 0) {
@@ -652,8 +685,22 @@ public class BleStatusFragment extends Fragment {
         msg.append("Permit checked: ")
             .append(TimeUtils.getRelativeTime(repository.getLastSyncTime()).toLowerCase(Locale.US));
 
+        // Dev info: charges counted by the phone, the rest reported by the display (fw 4+)
+        int charges = repository.getChargeCount();
+        long lastCharged = repository.getLastCharged();
+        int fw = repository.getFirmwareVersion();
+        int boots = repository.getBootCount();
+        msg.append("\n\nCharges: ").append(charges);
+        if (lastCharged > 0) msg.append(", last ").append(fmtMillis(lastCharged));
+        if (fw > 0) msg.append("\nFirmware ").append(fw);
+        if (boots >= 0) {
+            msg.append("\nRestarts: ").append(boots).append(", last: ")
+                .append(PermitRepository.resetReasonText(repository.getResetReason()));
+        }
+
+        PermitRepository.DisplayInfo selected = repository.getSelectedDisplay();
         new AlertDialog.Builder(requireContext())
-            .setTitle("Display")
+            .setTitle(selected != null ? selected.name : "Display")
             .setMessage(msg.toString())
             .setPositiveButton("OK", null)
             .show();
@@ -713,7 +760,7 @@ public class BleStatusFragment extends Fragment {
                 .setTitle("Samsung Battery Settings")
                 .setMessage("To keep the app running:\n\n" +
                     "1. Tap 'Open Settings' below\n" +
-                    "2. Find 'Parking Permit Sync'\n" +
+                    "2. Find '" + getString(R.string.app_name) + "'\n" +
                     "3. Set to 'Unrestricted'\n\n" +
                     "This prevents Samsung from killing the app.")
                 .setPositiveButton("Open Settings", (d, w) -> {
