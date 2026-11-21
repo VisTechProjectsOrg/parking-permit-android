@@ -547,7 +547,7 @@ public class BleStatusFragment extends Fragment {
                 // fall through to the generic label
             }
         }
-        setScheduledBadge(when != null ? "Buys " + when : "Not bought yet", R.drawable.badge_grey);
+        setScheduledBadge(when != null ? "Auto-buy " + when : "Not bought yet", R.drawable.badge_grey);
     }
 
     private void setScheduledBadge(String text, int background) {
