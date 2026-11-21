@@ -661,7 +661,7 @@ public class BleGattService extends Service {
         line.append(String.format(java.util.Locale.US, "%.2f V (%d%%)", mv / 1000.0, PermitRepository.batteryPercent(mv)));
         line.append(", showing ").append(shown.isEmpty() ? "nothing" : shown);
         if (!cached.isEmpty()) line.append(", holding ").append(cached);
-        line.append(", fw ").append(fw);
+        line.append(", firmware v").append(fw);
         ActivityLog.log(this, line.toString());
 
         if (missNotFound + missFailed > 0) {

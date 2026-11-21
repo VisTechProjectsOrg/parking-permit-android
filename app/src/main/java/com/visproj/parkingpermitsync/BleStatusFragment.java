@@ -711,7 +711,7 @@ public class BleStatusFragment extends Fragment {
         int boots = repository.getBootCount();
         msg.append("\n\nCharges: ").append(charges);
         if (lastCharged > 0) msg.append(", last ").append(fmtMillis(lastCharged));
-        if (fw > 0) msg.append("\nFirmware ").append(fw);
+        if (fw > 0) msg.append("\nFirmware v").append(fw);
         if (boots >= 0) {
             msg.append("\nRestarts: ").append(boots).append(", last: ")
                 .append(PermitRepository.resetReasonText(repository.getResetReason()));
